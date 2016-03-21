@@ -66,6 +66,10 @@ static struct sftp_hostkey *sftp_ecdsa384_hostkey = NULL;
 static struct sftp_hostkey *sftp_ecdsa521_hostkey = NULL;
 #endif /* PR_USE_OPENSSL_ECC */
 
+#if defined(HAVE_SODIUM_H) */
+static struct sftp_hostkey *sftp_ed25519_hostkey = NULL;
+#endif /* HAVE_SODIUM_H */
+
 static const char *passphrase_provider = NULL;
 
 struct sftp_pkey {
@@ -987,6 +991,11 @@ static EVP_PKEY *get_pkey_from_data(pool *p, unsigned char *pkey_data,
       return NULL;
     }
 #endif /* PR_USE_OPENSSL_ECC */
+#if defined(HAVE_SODIUM_H)
+  } else if (strncmp(pkey_type, "ssh-ed25519", 12) == 0) {
+    /* XXX TODO */
+
+#endif /* HAVE_SODIUM_H */
 
   } else {
     (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
@@ -2188,6 +2197,11 @@ const unsigned char *sftp_keys_get_hostkey_data(pool *p,
     }
 
 #endif /* PR_USE_OPENSSL_ECC */
+#if defined(HAVE_SODIUM_H)
+    case SFTP_KEY_ED25519: {
+/* XXX TODO */
+    }
+#endif /* HAVE_SODIUM_H */
 
     default:
       (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
@@ -2268,6 +2282,22 @@ int sftp_keys_clear_ecdsa_hostkey(void) {
   return -1;
 }
 
+int sftp_keys_clear_ed25519_hostkey(void) {
+#if defined(HAVE_SODIUM_H)
+  if (sftp_ed25519_hostkey != NULL) {
+    if (sftp_ed25519_hostkey->pkey != NULL) {
+      EVP_PKEY_free(sftp_ed25519_hostkey->pkey);
+    }
+
+    sftp_ed25519_hostkey = NULL;
+    return 0;
+  }
+#endif /* HAVE_SODIUM_H */
+
+  errno = ENOENT;
+  return -1;
+}
+
 int sftp_keys_clear_rsa_hostkey(void) {
   if (sftp_rsa_hostkey != NULL) {
     if (sftp_rsa_hostkey->pkey != NULL) {
@@ -2338,6 +2368,17 @@ int sftp_keys_have_ecdsa_hostkey(pool *p, int **nids) {
   }
 
 #endif /* PR_USE_OPENSSL_ECC */
+
+  errno = ENOENT;
+  return -1;
+}
+
+int sftp_keys_have_ed25519_hostkey(void) {
+#if defined(HAVE_SODIUM_H)
+  if (sftp_ed25519_hostkey != NULL) {
+    return 0;
+  }
+#endif /* HAVE_SODIUM_H */
 
   errno = ENOENT;
   return -1;
