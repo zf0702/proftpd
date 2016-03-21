@@ -31,6 +31,10 @@
 #include "agent.h"
 #include "interop.h"
 
+#if defined(HAVE_SODIUM_H)
+# include <sodium.h>
+#endif /* HAVE_SODIUM_H */
+
 extern xaset_t *server_list;
 extern module sftp_module;
 
@@ -40,7 +44,13 @@ extern module sftp_module;
 
 struct sftp_hostkey {
   enum sftp_key_type_e key_type;
+
+  /* For OpenSSL keys */
   EVP_PKEY *pkey;
+
+  /* Non-OpenSSL keys */
+  unsigned char *ed25519_privkey;
+  unsigned char *ed25519_pubkey;
 
   const unsigned char *key_data;
   uint32_t key_datalen;
@@ -66,7 +76,7 @@ static struct sftp_hostkey *sftp_ecdsa384_hostkey = NULL;
 static struct sftp_hostkey *sftp_ecdsa521_hostkey = NULL;
 #endif /* PR_USE_OPENSSL_ECC */
 
-#if defined(HAVE_SODIUM_H) */
+#if defined(HAVE_SODIUM_H)
 static struct sftp_hostkey *sftp_ed25519_hostkey = NULL;
 #endif /* HAVE_SODIUM_H */
 
