@@ -25,6 +25,7 @@
 /* Error API tests */
 
 #include "tests.h"
+#include "error.h"
 
 static pool *p = NULL;
 
@@ -41,24 +42,216 @@ static void tear_down(void) {
   }
 }
 
+static const char *get_errnum(pool *err_pool, int xerrno) {
+  char errnum[32];
+  memset(errnum, '\0', sizeof(errnum));
+  snprintf(errnum, sizeof(errnum)-1, "%d", xerrno);
+  return pstrdup(err_pool, errnum);
+}
+
 START_TEST (error_create_test) {
+  pr_error_t *err;
+
+  err = pr_error_create(NULL, 0);
+  fail_unless(err == NULL, "Failed handle null arguments");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  err = pr_error_create(p, -1);
+  fail_unless(err == NULL, "Failed handle negative errno");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  err = pr_error_create(p, 0);
+  fail_unless(err != NULL, "Failed allocate error: %s", strerror(errno));
+  pr_error_destroy(err);
 }
 END_TEST
 
 START_TEST (error_destroy_test) {
+  pr_error_t *err;
+  int xerrno = 77;
+
+  err = pr_error_create(p, 0);
+  fail_unless(err != NULL, "Failed allocate error: %s", strerror(errno));
+
+  /* Make sure that pr_error_destroy() preserves the existing errno value. */
+  errno = xerrno;
+  pr_error_destroy(NULL);
+  pr_error_destroy(err);
+
+  fail_unless(errno == xerrno, "Expected errno %d, got %d", xerrno, errno);
 }
 END_TEST
 
 START_TEST (error_set_goal_test) {
+  int res;
+  pr_error_t *err;
+
+  res = pr_error_set_goal(NULL, NULL);
+  fail_unless(res < 0, "Failed to handle null arguments");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  err = pr_error_create(p, 1);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_set_goal(err, NULL);
+  fail_unless(res < 0, "Failed to handle null goal");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  res = pr_error_set_goal(err, "because I wanted to");
+  fail_unless(res == 0, "Failed to set goal: %s", strerror(errno));
+
+  pr_error_destroy(err);
 }
 END_TEST
 
 START_TEST (error_set_location_test) {
+  int res;
+  pr_error_t *err;
+
+  res = pr_error_set_location(NULL, NULL, NULL, 0);
+  fail_unless(res < 0, "Failed to handle null arguments");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  err = pr_error_create(p, 1);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_set_location(err, NULL, NULL, 0);
+  fail_unless(res == 0, "Failed to set location: %s", strerror(errno));
+
+  pr_error_destroy(err);
 }
 END_TEST
 
-START_TEST (error_strerror_test) {
-  /* XXX Make sure to have tests for the details, formats */
+START_TEST (error_set_operation_test) {
+  int res;
+  pr_error_t *err;
+
+  res = pr_error_set_operation(NULL, NULL, NULL);
+  fail_unless(res < 0, "Failed to handle null arguments");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  err = pr_error_create(p, 1);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_set_operation(err, NULL, NULL);
+  fail_unless(res < 0, "Failed to handle null operation");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  res = pr_error_set_operation(err, "testing", NULL);
+  fail_unless(res == 0, "Failed to set operation: %s", strerror(errno));
+
+  res = pr_error_set_operation(err, "testing", "none");
+  fail_unless(res == 0, "Failed to set operation: %s", strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+START_TEST (error_strerror_minimal_test) {
+  int format = PR_ERROR_FORMAT_USE_MINIMAL, xerrno;
+  pr_error_t *err;
+  const char *res, *expected, *oper, *args;
+
+  xerrno = errno = ENOENT;
+  expected = strerror(xerrno);
+  res = pr_error_strerror(NULL, format);
+  fail_unless(res != NULL, "Failed to handle null error: %s", strerror(errno));
+  fail_unless(strcmp(res, expected) == 0, "Expected '%s', got '%s'", expected,
+    res);
+
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_strerror(err, -1);
+  fail_unless(res != NULL, "Failed to handle invalid format: %s",
+    strerror(errno));
+  fail_unless(strcmp(res, expected) == 0, "Expected '%s', got '%s'", expected,
+    res);
+
+  expected = pstrcat(p, "No such file or directory (ENOENT [",
+    get_errnum(p, xerrno), "])", NULL);
+  res = pr_error_strerror(err, format);
+  fail_unless(res != NULL, "Failed to format error: %s", strerror(errno));
+  fail_unless(strcmp(res, expected) == 0, "Expected '%s', got '%s'", expected,
+    res);
+
+  pr_error_destroy(err);
+  xerrno = 0;
+
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  expected = "Success (EOK [0])";
+  res = pr_error_strerror(err, format);
+  fail_unless(res != NULL, "Failed to format error: %s", strerror(errno));
+  fail_unless(strcmp(res, expected) == 0, "Expected '%s', got '%s'", expected,
+    res);
+
+  pr_error_destroy(err);
+
+  /* We want to test what happens when we use an invalid errno value. */
+  xerrno = INT_MAX - 786;
+
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  expected = pstrcat(p, strerror(xerrno), " (<unknown/unsupported error> [",
+    get_errnum(p, xerrno), "])", NULL);
+  res = pr_error_strerror(err, format);
+  fail_unless(res != NULL, "Failed to format error: %s", strerror(errno));
+  fail_unless(strcmp(res, expected) == 0, "Expected '%s', got '%s'", expected,
+    res);
+
+  pr_error_destroy(err);
+  xerrno = ENOSYS;
+
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  oper = "test";
+  pr_error_set_operation(err, oper, NULL);
+
+  expected = pstrcat(p, oper, " failed with \"", strerror(xerrno), " (ENOSYS [",
+    get_errnum(p, xerrno), "])\"", NULL);
+  res = pr_error_strerror(err, format);
+  fail_unless(res != NULL, "Failed to format error: %s", strerror(errno));
+  fail_unless(strcmp(res, expected) == 0, "Expected '%s', got '%s'", expected,
+    res);
+
+  pr_error_destroy(err);
+
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  oper = "test2";
+  args = "junk";
+  pr_error_set_operation(err, oper, args);
+
+  expected = pstrcat(p, oper, " using ", args, " failed with \"",
+    strerror(xerrno), " (ENOSYS [", get_errnum(p, xerrno), "])\"", NULL);
+  res = pr_error_strerror(err, format);
+  fail_unless(res != NULL, "Failed to format error: %s", strerror(errno));
+  fail_unless(strcmp(res, expected) == 0, "Expected '%s', got '%s'", expected,
+    res);
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+START_TEST (error_strerror_terse_test) {
+  /* XXX Make sure to have tests for the details */
+}
+END_TEST
+
+START_TEST (error_strerror_detailed_test) {
+  /* XXX Make sure to have tests for the details */
 }
 END_TEST
 
@@ -75,7 +268,10 @@ Suite *tests_get_error_suite(void) {
   tcase_add_test(testcase, error_destroy_test);
   tcase_add_test(testcase, error_set_goal_test);
   tcase_add_test(testcase, error_set_location_test);
-  tcase_add_test(testcase, error_strerror_test);
+  tcase_add_test(testcase, error_set_operation_test);
+  tcase_add_test(testcase, error_strerror_minimal_test);
+  tcase_add_test(testcase, error_strerror_terse_test);
+  tcase_add_test(testcase, error_strerror_detailed_test);
 
 #if 0
   tcase_add_test(testcase, error_explain_accept_test);
@@ -112,12 +308,10 @@ Suite *tests_get_error_suite(void) {
   tcase_add_test(testcase, error_explain_getsockname_test);
   tcase_add_test(testcase, error_explain_getsockopt_test);
   tcase_add_test(testcase, error_explain_gettimeofday_test);
-  tcase_add_test(testcase, error_explain_gmtime_test);
   tcase_add_test(testcase, error_explain_lchmod_test);
   tcase_add_test(testcase, error_explain_lchown_test);
   tcase_add_test(testcase, error_explain_link_test);
   tcase_add_test(testcase, error_explain_listen_test);
-  tcase_add_test(testcase, error_explain_localtime_test);
   tcase_add_test(testcase, error_explain_lseek_test);
   tcase_add_test(testcase, error_explain_lstat_test);
   tcase_add_test(testcase, error_explain_lutimes_test);
