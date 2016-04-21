@@ -37,23 +37,21 @@ void pr_error_destroy(pr_error_t *err);
 
 int pr_error_set_goal(pr_error_t *err, const char *goal);
 int pr_error_set_location(pr_error_t *err, module *m, const char *file,
-  int lineno);
+  unsigned int lineno);
+int pr_error_set_operation(pr_error_t *err, const char *operation,
+  const char *args);
 
 unsigned int pr_error_use_details(unsigned int use_details);
-#define PR_ERROR_DETAILS_USE_USER_NAME		0x00001
-#define PR_ERROR_DETAILS_USE_USER_ID		0x00002
-#define PR_ERROR_DETAILS_USE_GROUP_NAME		0x00004
-#define PR_ERROR_DETAILS_USE_GROUP_ID		0x00008
-#define PR_ERROR_DETAILS_USE_PROTOCOL		0x00010
-#define PR_ERROR_DETAILS_USE_MODULE		0x00020
-#define PR_ERROR_DETAILS_USE_FILE		0x00040
-#define PR_ERROR_DETAILS_USE_LINENO		0x00080
+#define PR_ERROR_DETAILS_USE_NAMES		0x00001
+#define PR_ERROR_DETAILS_USE_IDS		0x00002
+#define PR_ERROR_DETAILS_USE_PROTOCOL		0x00004
+#define PR_ERROR_DETAILS_USE_MODULE		0x00008
+#define PR_ERROR_DETAILS_USE_FILE		0x00010
 
 #define PR_ERROR_DETAILS_DEFAULT \
-  (PR_ERROR_DETAILS_USE_USER_NAME|PR_ERROR_DETAILS_USE_USER_ID| \
-   PR_ERROR_DETAILS_USE_GROUP_NAME|PR_ERROR_DETAILS_USE_GROUP_ID| \
+  (PR_ERROR_DETAILS_USE_NAMES|PR_ERROR_DETAILS_USE_IDS| \
    PR_ERROR_DETAILS_USE_PROTOCOL|PR_ERROR_DETAILS_USE_MODULE| \
-   PR_ERROR_DETAILS_USE_FILE|PR_ERROR_DETAILS_USE_LINENO)
+   PR_ERROR_DETAILS_USE_FILE)
 
 unsigned int pr_error_use_formats(unsigned int use_formats);
 #define PR_ERROR_FORMAT_USE_DETAILED		0x001
@@ -63,10 +61,10 @@ unsigned int pr_error_use_formats(unsigned int use_formats);
 #define PR_ERROR_FORMAT_DEFAULT \
   (PR_ERROR_FORMAT_USE_DETAILED|PR_ERROR_FORMAT_USE_MINIMAL)
 
-/* Convert the error into a textual representation (determined by format)
+/* Convert the error into a textual representation (determined by use_format)
  * for consumption/use in e.g. logging.
  */
-const char *pr_error_strerror(pr_error_t *err, int format);
+const char *pr_error_strerror(pr_error_t *err, int use_format);
 
 /* Explain individual operations' errors.  The list of explainable operations
  * is NOT meant to be a comprehensive list of all system/library calls used
@@ -153,11 +151,6 @@ int pr_error_explain_getsockname(pr_error_t *err, struct sockaddr *addr,
 int pr_error_explain_getsockopt(pr_error_t *err, int fd, int level, int option,
   void *val, socklen_t *valsz);
 
-int pr_error_explain_gettimeofday(pr_error_t *err, struct timeval *tv,
-  void *tz);
-
-int pr_error_explain_gmtime(pr_error_t *err, const time_t *then);
-
 int pr_error_explain_lchmod(pr_error_t *err, const char *path, mode_t mode);
 
 int pr_error_explain_lchown(pr_error_t *err, const char *path,
@@ -167,8 +160,6 @@ int pr_error_explain_link(pr_error_t *err, const char *target_path,
   const char *link_path);
 
 int pr_error_explain_listen(pr_error_t *err, int fd, int backlog);
-
-int pr_error_explain_localtime(pr_error_t *err, const time_t *then);
 
 int pr_error_explain_lseek(pr_error_t *err, int fd, off_t offset, int whence);
 
@@ -236,8 +227,6 @@ int pr_error_explain_statvfs(pr_error_t *err, const char *path, void *stfs);
 
 int pr_error_explain_symlink(pr_error_t *err, const char *target_path,
   const char *link_path);
-
-int pr_error_explain_time(pr_error_t *err, time_t *now);
 
 int pr_error_explain_truncate(pr_error_t *err, const char *path, off_t len);
 
