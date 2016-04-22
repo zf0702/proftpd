@@ -57,6 +57,17 @@ struct err_rec {
 static unsigned int error_details = PR_ERROR_DETAILS_DEFAULT;
 static unsigned int error_formats = PR_ERROR_FORMAT_DEFAULT;
 
+struct err_registered_explainer {
+  struct err_registered_explainer *next, *prev;
+
+  module *m;
+  const char *name;
+  pr_error_explanations_t *explainers;
+};
+
+/* Currently selected explainers. */
+static struct err_registered_explainer *error_explainer = NULL;
+
 struct errno_info {
   int error_number;
   const char *name;
@@ -292,6 +303,8 @@ static struct errno_info errno_names[] = {
   { -1, NULL }
 };
 
+static const char *trace_channel = "error";
+
 pr_error_t *pr_error_create(pool *p, int xerrno) {
   pr_error_t *err;
   pool *err_pool;
@@ -513,6 +526,16 @@ static const char *get_where(pr_error_t *err) {
   return where;
 }
 
+static const char *get_oper(pr_error_t *err) {
+  const char *what = NULL;
+
+  if (err->err_oper != NULL) {
+    what = err->err_oper;
+  }
+
+  return what;
+}
+
 static const char *get_what(pr_error_t *err) {
   const char *what = NULL;
 
@@ -626,7 +649,27 @@ static const char *get_terse_text(pool *p, const char *what,
     const char *failure, const char *explained) {
   const char *err_text = NULL;
 
-/* XXX TODO */
+  if (what != NULL) {
+    err_text = what;
+  }
+
+  if (failure != NULL) {
+    /* Not much point in including the failure string if there is no other
+     * context provided.
+     */
+    if (err_text != NULL) {
+      err_text = pstrcat(p, err_text, " failed with \"", failure, "\"", NULL);
+    }
+  }
+
+  if (explained != NULL) {
+    /* Not much point in including the failure explanation if there is no
+     * other context provided.
+     */
+    if (err_text != NULL) {
+      err_text = pstrcat(p, err_text, " because ", explained, NULL);
+    }
+  }
 
   return err_text;
 }
@@ -746,7 +789,10 @@ const char *pr_error_strerror(pr_error_t *err, int use_format) {
     case PR_ERROR_FORMAT_USE_TERSE: {
       const char *what, *failure, *explained;
 
-      what = get_what(err);
+      /* For terse messages, we only want the operation, if available, and NOT
+       * the args.
+       */
+      what = get_oper(err);
       failure = get_failure(err);
       explained = get_explained(err);
 
@@ -757,7 +803,7 @@ const char *pr_error_strerror(pr_error_t *err, int use_format) {
     case PR_ERROR_FORMAT_USE_MINIMAL: {
       const char *what, *failure;
 
-      what = get_what(err);
+      what = get_oper(err);
       failure = get_failure(err);
 
       err_text = get_minimal_text(err->err_pool, what, failure);
@@ -766,6 +812,51 @@ const char *pr_error_strerror(pr_error_t *err, int use_format) {
   }
 
   return err_text;
+}
+
+pr_error_explanations_t *pr_error_register_explanations(pool *p, module *m,
+    const char *name) {
+  errno = ENOSYS;
+  return NULL;
+}
+
+int pr_error_unregister_explanations(pool *p, module *m, const char *name) {
+
+  /* If the unregistered explanations are currently the default/selected
+   * ones, make sure to set that pointer to NULL!
+   */
+
+  errno = ENOSYS;
+  return -1;
+}
+
+int pr_error_use_explanations(pool *p, module *m, const char *name) {
+  errno = ENOSYS;
+  return -1;
+}
+
+/* Even if err_errno is 0 (OK), we will still call out to the registered
+ * explanation providers (explainers).  Why?
+ *
+ * An explanation provider, not the core API, is responsible for providing
+ * a textual description of the operation's arguments, if nothing else.  Thus
+ * even for an "OK" errno value, the caller might want the full textual
+ * description of the operation and its arguments.
+ */
+
+static void trace_explained_error(module *m, const char *name,
+    const char *oper, int xerrno) {
+
+  if (m != NULL) {
+    (void) pr_trace_msg(trace_channel, 9,
+      "'%s' explanations (from mod_%s), failed to explain '%s': %s", name,
+      m->name, oper, strerror(xerrno));
+
+  } else {
+    pr_trace_msg(trace_channel, 9,
+      "'%s' explanations (from core), failed to explain '%s': %s", name,
+      oper, strerror(xerrno));
+  }
 }
 
 int pr_error_explain_accept(pr_error_t *err, int fd, struct sockaddr *addr,
@@ -1004,11 +1095,30 @@ int pr_error_explain_mkstemp(pr_error_t *err, char *tmpl) {
 
 int pr_error_explain_open(pr_error_t *err, const char *path, int flags,
     mode_t mode) {
+  const char *oper = "open";
+  int res = 0;
 
-/* IFF err->err_errno is not 0 (OK), THEN call out to our explainers. */
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
 
-  errno = ENOSYS;
-  return -1;
+    explained = (error_explainer->explainers->explain_open)(err->err_pool,
+      err->err_errno, path, flags, mode, &(err->err_args));
+    xerrno = errno;
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      res = -1;
+    }
+
+  } else {
+    res = pr_error_set_operation(err, oper, NULL);
+  }
+
+  return res;
 }
 
 int pr_error_explain_opendir(pr_error_t *err, const char *path) {

@@ -154,6 +154,27 @@ START_TEST (error_set_operation_test) {
 }
 END_TEST
 
+START_TEST (error_explanations_test) {
+  pr_error_explanations *explanations;
+  int res;
+
+  /* Unregister with none registered -- ENOENT */
+
+  /* Register a new one - 0 */
+  /* Register a same one - EEXIST */
+
+  /* Unregister a registed one - 0 */
+  /* Unregister a registed one again - ENOENT */
+
+  /* Wildcard unregister (ANY_MODULE, null name) */
+
+  /* Use a valid explanations */
+  /* Use a valid (already used) explanations */
+  /* Use an invalid explanations */
+
+}
+END_TEST
+
 START_TEST (error_strerror_minimal_test) {
   int format = PR_ERROR_FORMAT_USE_MINIMAL, xerrno;
   pr_error_t *err;
@@ -230,12 +251,15 @@ START_TEST (error_strerror_minimal_test) {
   err = pr_error_create(p, xerrno);
   fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
 
+  /* Even though we DO provide the operation arguments here, the args should
+   * NOT appear in the minimal error string.
+   */
   oper = "test2";
   args = "junk";
   pr_error_set_operation(err, oper, args);
 
-  expected = pstrcat(p, oper, " using ", args, " failed with \"",
-    strerror(xerrno), " (ENOSYS [", get_errnum(p, xerrno), "])\"", NULL);
+  expected = pstrcat(p, oper, " failed with \"", strerror(xerrno),
+    " (ENOSYS [", get_errnum(p, xerrno), "])\"", NULL);
   res = pr_error_strerror(err, format);
   fail_unless(res != NULL, "Failed to format error: %s", strerror(errno));
   fail_unless(strcmp(res, expected) == 0, "Expected '%s', got '%s'", expected,
@@ -246,7 +270,57 @@ START_TEST (error_strerror_minimal_test) {
 END_TEST
 
 START_TEST (error_strerror_terse_test) {
-  /* XXX Make sure to have tests for the details */
+  int format = PR_ERROR_FORMAT_USE_TERSE, xerrno;
+  pr_error_t *err;
+  const char *res, *expected, *oper, *args;
+
+  xerrno = errno = ENOENT;
+  expected = strerror(xerrno);
+  res = pr_error_strerror(NULL, format);
+  fail_unless(res != NULL, "Failed to handle null error: %s", strerror(errno));
+  fail_unless(strcmp(res, expected) == 0, "Expected '%s', got '%s'", expected,
+    res);
+
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_strerror(err, -1);
+  fail_unless(res != NULL, "Failed to handle invalid format: %s",
+    strerror(errno));
+  fail_unless(strcmp(res, expected) == 0, "Expected '%s', got '%s'", expected,
+    res);
+
+  expected = pstrcat(p, "No such file or directory (ENOENT [",
+    get_errnum(p, xerrno), "])", NULL);
+  res = pr_error_strerror(err, format);
+  fail_unless(res != NULL, "Failed to format error: %s", strerror(errno));
+  fail_unless(strcmp(res, expected) == 0, "Expected '%s', got '%s'", expected,
+    res);
+
+  pr_error_destroy(err);
+
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  /* Even though we DO provide the operation arguments here, the args should
+   * NOT appear in the minimal error string.
+   */
+  oper = "test2";
+  args = "junk";
+  pr_error_set_operation(err, oper, args);
+
+  expected = pstrcat(p, oper, " failed with \"", strerror(xerrno),
+    " (ENOENT [", get_errnum(p, xerrno), "])\"", NULL);
+  res = pr_error_strerror(err, format);
+  fail_unless(res != NULL, "Failed to format error: %s", strerror(errno));
+  fail_unless(strcmp(res, expected) == 0, "Expected '%s', got '%s'", expected,
+    res);
+
+  pr_error_destroy(err);
+
+/* XXX To expect/test explanations, I need to actually implement the
+ * explainer callback registration/unregistration API, and use it here.
+ */
 }
 END_TEST
 
@@ -269,11 +343,15 @@ Suite *tests_get_error_suite(void) {
   tcase_add_test(testcase, error_set_goal_test);
   tcase_add_test(testcase, error_set_location_test);
   tcase_add_test(testcase, error_set_operation_test);
+#if 0
+  tcase_add_test(testcase, error_explanations_test);
+#endif
   tcase_add_test(testcase, error_strerror_minimal_test);
   tcase_add_test(testcase, error_strerror_terse_test);
   tcase_add_test(testcase, error_strerror_detailed_test);
 
 #if 0
+
   tcase_add_test(testcase, error_explain_accept_test);
   tcase_add_test(testcase, error_explain_bind_test);
   tcase_add_test(testcase, error_explain_chdir_test);

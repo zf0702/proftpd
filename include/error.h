@@ -32,6 +32,290 @@
 
 typedef struct err_rec pr_error_t;
 
+struct err_explain_rec {
+  /* Explain accept(2) errors. */
+  const char *(*explain_accept)(pool *p, int xerrno, int fd,
+   struct sockaddr *addr, socklen_t *addr_len, const char **args);
+
+  /* Explain bind(2) errors. */
+  const char *(*explain_bind)(pool *p, int xerrno, int fd,
+    const struct sockaddr *addr, socklen_t addr_len, const char **args);
+
+  /* Explain chdir(2) errors. */
+  const char *(*explain_chdir)(pool *p, int xerrno, const char *path,
+    mode_t mode, const char **args);
+
+  /* Explain chmod(2) errors. */
+  const char *(*explain_chmod)(pool *p, int xerrno, const char *path,
+    mode_t mode, const char **args);
+
+  /* Explain chown(2) errors. */
+  const char *(*explain_chown)(pool *p, int xerrno, const char *path,
+    uid_t uid, gid_t gid, const char **args);
+
+  /* Explain chroot(2) errors. */
+  const char *(*explain_chroot)(pool *p, int xerrno, const char *path,
+    const char **args);
+
+  /* Explain close(2) errors. */
+  const char *(*explain_close)(pool *p, int xerrno, int fd, const char **args);
+
+  /* Explain closedir(3) errors. */
+  const char *(*explain_closedir)(pool *p, int xerrno, void *dirh,
+    const char **args);
+
+  /* Explain connect(2) errors. */
+  const char *(*explain_connect)(pool *p, int xerrno, int fd,
+    const struct sockaddr *addr, socklen_t addr_len, const char **args);
+
+  /* Explain fchmod(2) errors. */
+  const char *(*explain_fchmod)(pool *p, int xerrno, int fd, mode_t mode,
+    const char **args);
+
+  /* Explain fchown(2) errors. */
+  const char *(*explain_fchown)(pool *p, int xerrno, int fd, uid_t uid,
+    gid_t gid, const char **args);
+
+  /* Explain fclose(3) errors. */
+  const char *(*explain_fclose)(pool *p, int xerrno, FILE *fh,
+    const char **args);
+
+  /* Explain fcntl(2) errors. */
+  const char *(*explain_fcntl)(pool *p, int xerrno, int fd, int oper,
+    long arg, const char **args);
+
+  /* Explain fdopen(3) errors. */
+  const char *(*explain_fdopen)(pool *p, int xerrno, int fd, const char *mode,
+    const char **args);
+
+  /* Explain flock(2) errors. */
+  const char *(*explain_flock)(pool *p, int xerrno, int fd, int oper,
+    const char **args);
+
+  /* Explain fopen(3) errors. */
+  const char *(*explain_fopen)(pool *p, int xerrno, const char *path,
+    const char *mode, const char **args);
+
+  /* Explain fork(2) errors. */
+  const char *(*explain_fork)(pool *p, int xerrno, const char **args);
+
+  /* Explain fstat(2) errors. */
+  const char *(*explain_fstat)(pool *p, int xerrno, int fd, struct stat *st,
+    const char **args);
+
+  /* Explain fstatfs(2) errors. */
+  const char *(*explain_fstatfs)(pool *p, int xerrno, int fd, void *stfs,
+    const char **args);
+
+  /* Explain fstatvfs(2) errors. */
+  const char *(*explain_fstatvfs)(pool *p, int xerrno, int fd, void *stfs,
+    const char **args);
+
+  /* Explain fsync(2) errors. */
+  const char *(*explain_fsync)(pool *p, int xerrno, int fd, const char **args);
+
+  /* Explain ftruncate(2) errors. */
+  const char *(*explain_ftruncate)(pool *p, int xerrno, int fd, off_t len,
+    const char **args);
+
+  /* Explain futimes(2) errors. */
+  const char *(*explain_futimes)(pool *p, int xerrno, int fd,
+    const struct timeval *tvs, const char **args);
+
+  /* Explain getaddrinfo(2) errors. */
+  const char *(*explain_getaddrinfo)(pool *p, int xerrno, const char *name,
+    const char *service, const struct addrinfo *hints, struct addrinfo **res,
+    const char **args);
+
+  /* Explain gethostbyname(2) errors. */
+  const char *(*explain_gethostbyname)(pool *p, int xerrno, const char *name,
+    const char **args);
+
+  /* Explain gethostbyname2(2) errors. */
+  const char *(*explain_gethostbyname2)(pool *p, int xerrno, const char *name,
+    int family, const char **args);
+
+  /* Explain gethostname(2) errors. */
+  const char *(*explain_gethostname)(pool *p, int xernro, char *buf,
+    size_t sz, const char **args);
+
+  /* Explain getnameinfo(2) errors. */
+  const char *(*explain_getnameinfo)(pool *p, int xerrno,
+    const struct sockaddr *addr, socklen_t addr_len, char *host,
+    size_t host_len, char *service, size_t service_len, int flags,
+    const char **args);
+
+  /* Explain getpeername(2) errors. */
+  const char *(*explain_getpeername)(pool *p, int xerrno, int fd,
+    struct sockaddr *addr, socklen_t addr_len, const char **args);
+
+  /* Explain getrlimit(2) errors. */
+  const char *(*explain_getrlimit)(pool *p, int xerrno, int resource,
+    struct rlimit *rlim, const char **args);
+
+  /* Explain getsockname(2) errors. */
+  const char *(*explain_getsockname)(pool *p, int xerrno, struct sockaddr *addr,
+    socklen_t *addr_len, const char **args);
+
+  /* Explain getsockopt(2) errors. */
+  const char *(*explain_getsockopt)(pool *p, int xerrno, int fd, int level,
+    int option, void *val, socklen_t *valsz, const char **args);
+
+  /* Explain lchmod(2) errors. */
+  const char *(*explain_lchmod)(pool *p, int xerrno, const char *path,
+    mode_t mode, const char **args);
+
+  /* Explain lchown(2) errors. */
+  const char *(*explain_lchown)(pool *p, int xerrno, const char *path,
+    uid_t uid, gid_t gid, const char **args);
+
+  /* Explain link(2) errors. */
+  const char *(*explain_link)(pool *p, int xerrno, const char *target_path,
+    const char *link_path, const char **args);
+
+  /* Explain listen(2) errors. */
+  const char *(*explain_listen)(pool *p, int xerrno, int fd, int backlog,
+    const char **args);
+
+  /* Explain lseek(2) errors. */
+  const char *(*explain_lseek)(pool *p, int xerrno, int fd, off_t offset,
+    int whence, const char **args);
+
+  /* Explain lstat(2) errors. */
+  const char *(*explain_lstat)(pool *p, int xerrno, const char *path,
+    struct stat *st, const char **args);
+
+  /* Explain lutimes(2) errors. */
+  const char *(*explain_lutimes)(pool *p, int xerrno, const char *path,
+    struct timeval *tvs, const char **args);
+
+  /* Explain mkdir(2) errors. */
+  const char *(*explain_mkdir)(pool *p, int xerrno, const char *path,
+    mode_t mode, const char **args);
+
+  /* Explain mkdtemp(3) errors. */
+  const char *(*explain_mkdtemp)(pool *p, int xerrno, char *tmpl,
+    const char **args);
+
+  /* Explain mkstemp(3) errors. */
+  const char *(*explain_mkstemp)(pool *p, int xerrno, char *tmpl,
+    const char **args);
+
+  /* Explain open(2) errors. */
+  const char *(*explain_open)(pool *p, int xerrno, const char *path, int flags,
+    mode_t mode, const char **args);
+
+  /* Explain opendir(3) errors. */
+  const char *(*explain_opendir)(pool *p, int xerrno, const char *path,
+    const char **args);
+
+  /* Explain read(2) errors. */
+  const char *(*explain_read)(pool *p, int xerrno, int fd, void *buf,
+    size_t sz, const char **args);
+
+  /* Explain readdir(3) errors. */
+  const char *(*explain_readdir)(pool *p, int xerrno, void *dirh,
+    const char **args);
+
+  /* Explain readlink(2) errors. */
+  const char *(*explain_readlink)(pool *p, int xerrno, const char *path,
+    char *buf, size_t sz, const char **args);
+
+  /* Explain readv(2) errors. */
+  const char *(*explain_readv)(pool *p, int xerrno, int fd, void *buf,
+    size_t sz, const char **args);
+
+  /* Explain rename(2) errors. */
+  const char *(*explain_rename)(pool *p, int xerrno, const char *old_path,
+    const char *new_path, const char **args);
+
+  /* Explain rmdir(2) errors. */
+  const char *(*explain_rmdir)(pool *p, int xerrno, const char *path,
+    const char **args);
+
+  /* Explain setegid(2) errors. */
+  const char *(*explain_setegid)(pool *p, int xerrno, gid_t gid,
+    const char **args);
+
+  /* Explain seteuid(2) errors. */
+  const char *(*explain_seteuid)(pool *p, int xerrno, uid_t uid,
+    const char **args);
+
+  /* Explain setgid(2) errors. */
+  const char *(*explain_setgid)(pool *p, int xerrno, gid_t gid,
+    const char **args);
+
+  /* Explain setregid(2) errors. */
+  const char *(*explain_setregid)(pool *p, int xerrno, gid_t rgid,
+    gid_t egid, const char **args);
+
+  /* Explain setresgid(2) errors. */
+  const char *(*explain_setresgid)(pool *p, int xerrno, gid_t rgid, gid_t egid,
+    gid_t sgid, const char **args);
+
+  /* Explain setresuid(2) errors. */
+  const char *(*explain_setresuid)(pool *p, int xerrno, uid_t ruid, uid_t euid,
+    uid_t suid, const char **args);
+
+  /* Explain setreuid(2) errors. */
+  const char *(*explain_setreuid)(pool *p, int xerrno, uid_t ruid, uid_t euid,
+    const char **args);
+
+  /* Explain setrlimit(2) errors. */
+  const char *(*explain_setrlimit)(pool *p, int xerrno, int resource,
+    const struct rlimit *rlim, const char **args);
+
+  /* Explain setsockopt(2) errors. */
+  const char *(*explain_setsockopt)(pool *p, int xerrno, int fd, int level,
+    int option, const void *val, socklen_t valsz, const char **args);
+
+  /* Explain setuid(2) errors. */
+  const char *(*explain_setuid)(pool *p, int xerrno, uid_t uid,
+    const char **args);
+
+  /* Explain socket(2) errors. */
+  const char *(*explain_socket)(pool *p, int xerrno, int domain, int type,
+    int proto);
+
+  /* Explain stat(2) errors. */
+  const char *(*explain_stat)(pool *p, int xerrno, const char *path,
+    struct stat *st, const char **args);
+
+  /* Explain statfs(2) errors. */
+  const char *(*explain_statfs)(pool *p, int xerrno, const char *path,
+    void *stfs, const char **args);
+
+  /* Explain statvfs(2) errors. */
+  const char *(*explain_statvfs)(pool *p, int xerrno, const char *path,
+    void *stfs, const char **args);
+
+  /* Explain symlink(2) errors. */
+  const char *(*explain_symlink)(pool *p, int xerrno, const char *target_path,
+    const char *link_path, const char **args);
+
+  /* Explain truncate(2) errors. */
+  const char *(*explain_truncate)(pool *p, int xerrno, const char *path,
+    off_t len, const char **args);
+
+  /* Explain unlink(2) errors. */
+  const char *(*explain_unlink)(pool *p, int xerrno, const char *path,
+    const char **args);
+
+  /* Explain utimes(2) errors. */
+  const char *(*explain_utimes)(pool *p, int xerrno, const char *path,
+    const struct timeval *tvs, const char **args);
+
+  /* Explain write(2) errors. */
+  const char *(*explain_write)(pool *p, int xerrno, int fd, const void *buf,
+    size_t sz, const char **args);
+
+  /* Explain writev(2) errors. */
+  const char *(*explain_writev)(pool *p, int xerrno, int fd,
+    const struct iovec *iov, int iov_len, const char **args);
+};
+
+typedef struct err_explain_rec pr_error_explanations_t;
+
 pr_error_t *pr_error_create(pool *p, int xerrno);
 void pr_error_destroy(pr_error_t *err);
 
@@ -65,6 +349,18 @@ unsigned int pr_error_use_formats(unsigned int use_formats);
  * for consumption/use in e.g. logging.
  */
 const char *pr_error_strerror(pr_error_t *err, int use_format);
+
+/* Register explanation callbacks, one callback per operation. */
+pr_error_explanations_t *pr_error_register_explanations(pool *p, module *m,
+  const char *name);
+
+/* Remove the explanation callbacks registered by the given module under the
+ * given name.
+ */
+int pr_error_unregister_explanations(pool *p, module *m, const char *name);
+
+/* Choose which module's named explanations to use. */
+int pr_error_use_explanations(pool *p, module *m, const char *name);
 
 /* Explain individual operations' errors.  The list of explainable operations
  * is NOT meant to be a comprehensive list of all system/library calls used
