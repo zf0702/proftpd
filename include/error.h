@@ -322,8 +322,7 @@ void pr_error_destroy(pr_error_t *err);
 int pr_error_set_goal(pr_error_t *err, const char *goal);
 int pr_error_set_location(pr_error_t *err, module *m, const char *file,
   unsigned int lineno);
-int pr_error_set_operation(pr_error_t *err, const char *operation,
-  const char *args);
+int pr_error_set_operation(pr_error_t *err, const char *operation);
 
 unsigned int pr_error_use_details(unsigned int use_details);
 #define PR_ERROR_DETAILS_USE_NAMES		0x00001

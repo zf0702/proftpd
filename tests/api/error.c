@@ -31,14 +31,22 @@ static pool *p = NULL;
 
 static void set_up(void) {
   if (p == NULL) {
-    p = make_sub_pool(NULL);
+    p = permanent_pool = make_sub_pool(NULL);
+  }
+
+  if (getenv("TEST_VERBOSE") != NULL) {
+    pr_trace_set_levels("error", 1, 20);
   }
 }
 
 static void tear_down(void) {
+  if (getenv("TEST_VERBOSE") != NULL) {
+    pr_trace_set_levels("error", 0, 0);
+  }
+
   if (p) {
     destroy_pool(p);
-    p = NULL;
+    p = permanent_pool = NULL;
   }
 }
 
@@ -131,7 +139,7 @@ START_TEST (error_set_operation_test) {
   int res;
   pr_error_t *err;
 
-  res = pr_error_set_operation(NULL, NULL, NULL);
+  res = pr_error_set_operation(NULL, NULL);
   fail_unless(res < 0, "Failed to handle null arguments");
   fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
     strerror(errno), errno);
@@ -139,15 +147,12 @@ START_TEST (error_set_operation_test) {
   err = pr_error_create(p, 1);
   fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
 
-  res = pr_error_set_operation(err, NULL, NULL);
+  res = pr_error_set_operation(err, NULL);
   fail_unless(res < 0, "Failed to handle null operation");
   fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
     strerror(errno), errno);
 
-  res = pr_error_set_operation(err, "testing", NULL);
-  fail_unless(res == 0, "Failed to set operation: %s", strerror(errno));
-
-  res = pr_error_set_operation(err, "testing", "none");
+  res = pr_error_set_operation(err, "testing");
   fail_unless(res == 0, "Failed to set operation: %s", strerror(errno));
 
   pr_error_destroy(err);
@@ -155,30 +160,123 @@ START_TEST (error_set_operation_test) {
 END_TEST
 
 START_TEST (error_explanations_test) {
-  pr_error_explanations *explanations;
+  module m;
+  const char *name;
+  pr_error_explanations_t *explanations;
   int res;
 
   /* Unregister with none registered -- ENOENT */
 
-  /* Register a new one - 0 */
-  /* Register a same one - EEXIST */
+  res = pr_error_unregister_explanations(NULL, NULL, NULL);
+  fail_unless(res < 0, "Failed to handle null arguments");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
 
-  /* Unregister a registed one - 0 */
-  /* Unregister a registed one again - ENOENT */
+  name = "testing";
+  res = pr_error_unregister_explanations(p, NULL, name);
+  fail_unless(res < 0, "Failed to handle no registered explanations");
+  fail_unless(errno == ENOENT, "Expected ENOENT (%d), got %s (%d)", ENOENT,
+    strerror(errno), errno);
 
-  /* Wildcard unregister (ANY_MODULE, null name) */
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
 
-  /* Use a valid explanations */
-  /* Use a valid (already used) explanations */
-  /* Use an invalid explanations */
+  res = pr_error_unregister_explanations(p, &m, NULL);
+  fail_unless(res < 0, "Failed to handle no registered explanations");
+  fail_unless(errno == ENOENT, "Expected ENOENT (%d), got %s (%d)", ENOENT,
+    strerror(errno), errno);
 
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res < 0, "Failed to handle no registered explanations");
+  fail_unless(errno == ENOENT, "Expected ENOENT (%d), got %s (%d)", ENOENT,
+    strerror(errno), errno);
+
+  res = pr_error_use_explanations(p, NULL, NULL);
+  fail_unless(res < 0, "Failed to handle no registered explanations");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  explanations = pr_error_register_explanations(NULL, NULL, NULL);
+  fail_unless(explanations == NULL, "Failed to handle null pool argument");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  explanations = pr_error_register_explanations(p, NULL, NULL);
+  fail_unless(explanations == NULL, "Failed to handle null name argument");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  explanations = pr_error_register_explanations(p, &m, name);
+  fail_unless(explanations != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  explanations = pr_error_register_explanations(p, &m, name);
+  fail_unless(explanations == NULL, "Failed to handle duplicate registration");
+  fail_unless(errno == EEXIST, "Expected EEXIST (%d), got %s (%d)", EEXIST,
+    strerror(errno), errno);
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to handle unregister '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res < 0, "Failed to handle no registered explanations");
+  fail_unless(errno == ENOENT, "Expected ENOENT (%d), got %s (%d)", ENOENT,
+    strerror(errno), errno);
+
+  /* Wildcard unregistrations: ANY_MODULE, null name. */
+
+  explanations = pr_error_register_explanations(p, &m, name);
+  fail_unless(explanations != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_unregister_explanations(p, ANY_MODULE, name);
+  fail_unless(res == 0, "Failed to handle unregister '%s' explanations: %s",
+    name, strerror(errno));
+
+  explanations = pr_error_register_explanations(p, &m, name);
+  fail_unless(explanations != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, NULL);
+  fail_unless(res == 0, "Failed to handle unregister module explanations: %s",
+    strerror(errno));
+
+  /* Selecting the explanations to use. */
+
+  explanations = pr_error_register_explanations(p, &m, name);
+  fail_unless(explanations != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_use_explanations(p, &m, NULL);
+  fail_unless(res < 0, "Failed to handle null name argument");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  res = pr_error_use_explanations(p, &m, "foobar");
+  fail_unless(res < 0, "Used 'foobar' explanations unexpectedly");
+  fail_unless(errno == ENOENT, "Expected ENOENT (%d), got %s (%d)", ENOENT,
+    strerror(errno), errno);
+
+  res = pr_error_use_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to use '%s' explanations: %s", name,
+    strerror(errno));
+
+  /* Use already-selected explanations */
+  res = pr_error_use_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to use '%s' explanations: %s", name,
+    strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to handle unregister module explanations: %s",
+    strerror(errno));
 }
 END_TEST
 
 START_TEST (error_strerror_minimal_test) {
   int format = PR_ERROR_FORMAT_USE_MINIMAL, xerrno;
   pr_error_t *err;
-  const char *res, *expected, *oper, *args;
+  const char *res, *expected, *oper;
 
   xerrno = errno = ENOENT;
   expected = strerror(xerrno);
@@ -237,7 +335,7 @@ START_TEST (error_strerror_minimal_test) {
   fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
 
   oper = "test";
-  pr_error_set_operation(err, oper, NULL);
+  pr_error_set_operation(err, oper);
 
   expected = pstrcat(p, oper, " failed with \"", strerror(xerrno), " (ENOSYS [",
     get_errnum(p, xerrno), "])\"", NULL);
@@ -251,12 +349,8 @@ START_TEST (error_strerror_minimal_test) {
   err = pr_error_create(p, xerrno);
   fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
 
-  /* Even though we DO provide the operation arguments here, the args should
-   * NOT appear in the minimal error string.
-   */
   oper = "test2";
-  args = "junk";
-  pr_error_set_operation(err, oper, args);
+  pr_error_set_operation(err, oper);
 
   expected = pstrcat(p, oper, " failed with \"", strerror(xerrno),
     " (ENOSYS [", get_errnum(p, xerrno), "])\"", NULL);
@@ -272,7 +366,7 @@ END_TEST
 START_TEST (error_strerror_terse_test) {
   int format = PR_ERROR_FORMAT_USE_TERSE, xerrno;
   pr_error_t *err;
-  const char *res, *expected, *oper, *args;
+  const char *res, *expected, *oper;
 
   xerrno = errno = ENOENT;
   expected = strerror(xerrno);
@@ -302,12 +396,8 @@ START_TEST (error_strerror_terse_test) {
   err = pr_error_create(p, xerrno);
   fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
 
-  /* Even though we DO provide the operation arguments here, the args should
-   * NOT appear in the minimal error string.
-   */
   oper = "test2";
-  args = "junk";
-  pr_error_set_operation(err, oper, args);
+  pr_error_set_operation(err, oper);
 
   expected = pstrcat(p, oper, " failed with \"", strerror(xerrno),
     " (ENOENT [", get_errnum(p, xerrno), "])\"", NULL);
@@ -317,16 +407,226 @@ START_TEST (error_strerror_terse_test) {
     res);
 
   pr_error_destroy(err);
-
-/* XXX To expect/test explanations, I need to actually implement the
- * explainer callback registration/unregistration API, and use it here.
- */
 }
 END_TEST
 
 START_TEST (error_strerror_detailed_test) {
-  /* XXX Make sure to have tests for the details */
+  int format = PR_ERROR_FORMAT_USE_DETAILED, xerrno, res2, error_details;
+  pr_error_t *err;
+  const char *res, *expected, *oper, *goal;
+
+  xerrno = errno = ENOENT;
+  expected = strerror(xerrno);
+  res = pr_error_strerror(NULL, format);
+  fail_unless(res != NULL, "Failed to handle null error: %s", strerror(errno));
+  fail_unless(strcmp(res, expected) == 0, "Expected '%s', got '%s'", expected,
+    res);
+
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_strerror(err, -1);
+  fail_unless(res != NULL, "Failed to handle invalid format: %s",
+    strerror(errno));
+  fail_unless(strcmp(res, expected) == 0, "Expected '%s', got '%s'", expected,
+    res);
+
+  /* no oper */
+  expected = pstrcat(p,
+    "in core failed with \"No such file or directory (ENOENT [",
+    get_errnum(p, xerrno), "])\"", NULL);
+  res = pr_error_strerror(err, format);
+  fail_unless(res != NULL, "Failed to format error: %s", strerror(errno));
+  fail_unless(strcmp(res, expected) == 0, "Expected '%s', got '%s'", expected,
+    res);
+
+  res2 = pr_error_set_location(err, NULL, __FILE__, __LINE__);
+  fail_unless(res2 == 0, "Failed to set error location: %s", strerror(errno));
+
+  expected = pstrcat(p,
+    "in core [api/error.c:443] failed with \"No such file or directory "
+    "(ENOENT [", get_errnum(p, xerrno), "])\"", NULL);
+  res = pr_error_strerror(err, format);
+  fail_unless(res != NULL, "Failed to format error: %s", strerror(errno));
+  fail_unless(strcmp(res, expected) == 0, "Expected '%s', got '%s'", expected,
+    res);
+
+  /* Disable use of the module name. */
+  error_details = pr_error_use_details(PR_ERROR_DETAILS_DEFAULT);
+  error_details &= ~PR_ERROR_DETAILS_USE_MODULE;
+  (void) pr_error_use_details(error_details);
+
+  expected = pstrcat(p,
+    "in api/error.c:443 failed with \"No such file or directory "
+    "(ENOENT [", get_errnum(p, xerrno), "])\"", NULL);
+  res = pr_error_strerror(err, format);
+  fail_unless(res != NULL, "Failed to format error: %s", strerror(errno));
+  fail_unless(strcmp(res, expected) == 0, "Expected '%s', got '%s'", expected,
+    res);
+
+  /* Disable use of the file location. */
+  error_details &= ~PR_ERROR_DETAILS_USE_FILE;
+  (void) pr_error_use_details(error_details);
+
+  /* We have no user/group, no location, no goal, no operation.  Expect the
+   * default/fallback, then.
+   */
+  expected = strerror(xerrno);
+  res = pr_error_strerror(err, format);
+  fail_unless(res != NULL, "Failed to format error: %s", strerror(errno));
+  fail_unless(strcmp(res, expected) == 0, "Expected '%s', got '%s'", expected,
+    res);
+
+  oper = "test";
+  res2 = pr_error_set_operation(err, oper);
+  fail_unless(res2 == 0, "Failed to set operation '%s': %s", oper,
+    strerror(errno));
+
+  expected = pstrcat(p, oper,
+    " failed with \"No such file or directory (ENOENT [",
+    get_errnum(p, xerrno), "])\"", NULL);
+  res = pr_error_strerror(err, format);
+  fail_unless(res != NULL, "Failed to format error: %s", strerror(errno));
+  fail_unless(strcmp(res, expected) == 0, "Expected '%s', got '%s'", expected,
+    res);
+
+  session.user = "foo";
+  session.uid = 77;
+  session.group = "bar";
+  session.gid = 88;
+
+  expected = pstrcat(p, "user ", session.user, " (UID 77)/group ",
+    session.group, " (GID 88) via ftp attempted ", oper,
+    " failed with \"No such file or directory (ENOENT [",
+    get_errnum(p, xerrno), "])\"", NULL);
+  res = pr_error_strerror(err, format);
+  fail_unless(res != NULL, "Failed to format error: %s", strerror(errno));
+  fail_unless(strcmp(res, expected) == 0, "Expected '%s', got '%s'", expected,
+    res);
+
+  /* Disable use of names. */
+  error_details |= (PR_ERROR_DETAILS_USE_MODULE|PR_ERROR_DETAILS_USE_FILE);
+  error_details &= ~PR_ERROR_DETAILS_USE_NAMES;
+  (void) pr_error_use_details(error_details);
+
+  expected = pstrcat(p, "UID 77/GID 88 via ftp in core [api/error.c:443] "
+    "attempted ", oper,
+    " failed with \"No such file or directory (ENOENT [",
+    get_errnum(p, xerrno), "])\"", NULL);
+  res = pr_error_strerror(err, format);
+  fail_unless(res != NULL, "Failed to format error: %s", strerror(errno));
+  fail_unless(strcmp(res, expected) == 0, "Expected '%s', got '%s'", expected,
+    res);
+
+  /* Enable use of names, disable use of IDs. */
+  error_details |= PR_ERROR_DETAILS_USE_NAMES;
+  error_details &= ~PR_ERROR_DETAILS_USE_IDS;
+  (void) pr_error_use_details(error_details);
+
+  expected = pstrcat(p, "user ", session.user, "/group ", session.group,
+    " via ftp in core [api/error.c:443] attempted ", oper,
+    " failed with \"No such file or directory (ENOENT [",
+    get_errnum(p, xerrno), "])\"", NULL);
+  res = pr_error_strerror(err, format);
+  fail_unless(res != NULL, "Failed to format error: %s", strerror(errno));
+  fail_unless(strcmp(res, expected) == 0, "Expected '%s', got '%s'", expected,
+    res);
+
+  /* Enable use of IDs, disable use of protocol. */
+  error_details |= PR_ERROR_DETAILS_USE_IDS;
+  error_details &= ~PR_ERROR_DETAILS_USE_PROTOCOL;
+  (void) pr_error_use_details(error_details);
+
+  expected = pstrcat(p, "user ", session.user, " (UID 77)/group ",
+    session.group, " (GID 88) in core [api/error.c:443] attempted ", oper,
+    " failed with \"No such file or directory (ENOENT [",
+    get_errnum(p, xerrno), "])\"", NULL);
+  res = pr_error_strerror(err, format);
+  fail_unless(res != NULL, "Failed to format error: %s", strerror(errno));
+  fail_unless(strcmp(res, expected) == 0, "Expected '%s', got '%s'", expected,
+    res);
+
+  /* Enable everything */
+  error_details = PR_ERROR_DETAILS_DEFAULT;
+  (void) pr_error_use_details(error_details);
+
+  goal = "test a function";
+  res2 = pr_error_set_goal(err, goal);
+  fail_unless(res2 == 0, "Failed to set goal: %s", strerror(errno));
+
+  expected = pstrcat(p, "user ", session.user, " (UID 77)/group ",
+    session.group, " (GID 88) via ftp wanted to ", goal,
+    " in core [api/error.c:443] but ", oper,
+    " failed with \"No such file or directory (ENOENT [",
+    get_errnum(p, xerrno), "])\"", NULL);
+  res = pr_error_strerror(err, 0);
+  fail_unless(res != NULL, "Failed to format error: %s", strerror(errno));
+  fail_unless(strcmp(res, expected) == 0, "Expected '%s', got '%s'", expected,
+    res);
+
+  pr_error_destroy(err);
+  pr_error_use_details(PR_ERROR_DETAILS_DEFAULT);
 }
+END_TEST
+
+static const char *test_explain_open(pool *err_pool, int xerrno,
+    const char *path, int flags, mode_t mode, const char **args) {
+  *args = pstrcat(err_pool, "path = '", path,
+    "', flags = O_RDONLY, mode = 0755", NULL);
+  return pstrdup(err_pool, "test mode is not real");
+}
+
+START_TEST (error_strerror_detailed_explained_test) {
+  int xerrno, res2;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  const char *res, *expected, *oper, *goal;
+  module m;
+
+  xerrno = ENOENT;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  oper = "test";
+  res2 = pr_error_set_operation(err, oper);
+  fail_unless(res2 == 0, "Failed to set operation: %s", strerror(errno));
+
+  goal = "demonstrate an error explanation";
+  res2 = pr_error_set_goal(err, goal);
+  fail_unless(res2 == 0, "Failed to set goal: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+
+  session.user = "foo";
+  session.uid = 7;
+  session.group = "bar";
+  session.gid = 8;
+
+  res2 = pr_error_set_location(err, &m, __FILE__, __LINE__);
+  fail_unless(res2 == 0, "Failed to set location: %s", strerror(errno));
+
+  explainers = pr_error_register_explanations(p, &m, "error");
+  explainers->explain_open = test_explain_open;
+
+  res2 = pr_error_explain_open(err, "path", O_RDONLY, 0755);
+  fail_unless(res2 == 0, "Failed to explain error: %s", strerror(errno));
+
+  expected = pstrcat(p, "user ", session.user, " (UID 7)/group ",
+    session.group, " (GID 8) via ftp wanted to ", goal, " in mod_",
+    m.name, " [api/error.c:606] but open() using path = 'path', "
+    "flags = O_RDONLY, mode = 0755 failed with \"No such file or directory ("
+    "ENOENT [", get_errnum(p, xerrno), "])\" because test mode is not real",
+    NULL);
+  res = pr_error_strerror(err, 0);
+  fail_unless(res != NULL, "Failed to format error: %s", strerror(errno));
+  fail_unless(strcmp(res, expected) == 0, "Expected '%s', got '%s'", expected,
+    res);
+
+  (void) pr_error_unregister_explanations(p, &m, NULL);
+  pr_error_destroy(err);
+}
+
 END_TEST
 
 Suite *tests_get_error_suite(void) {
@@ -343,15 +643,17 @@ Suite *tests_get_error_suite(void) {
   tcase_add_test(testcase, error_set_goal_test);
   tcase_add_test(testcase, error_set_location_test);
   tcase_add_test(testcase, error_set_operation_test);
-#if 0
   tcase_add_test(testcase, error_explanations_test);
-#endif
   tcase_add_test(testcase, error_strerror_minimal_test);
   tcase_add_test(testcase, error_strerror_terse_test);
   tcase_add_test(testcase, error_strerror_detailed_test);
+  tcase_add_test(testcase, error_strerror_detailed_explained_test);
 
 #if 0
 
+/* These tests need to cover with and without explainers.  And with explainers,
+ * test null/non-null explanations
+ */
   tcase_add_test(testcase, error_explain_accept_test);
   tcase_add_test(testcase, error_explain_bind_test);
   tcase_add_test(testcase, error_explain_chdir_test);

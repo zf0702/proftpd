@@ -57,16 +57,19 @@ struct err_rec {
 static unsigned int error_details = PR_ERROR_DETAILS_DEFAULT;
 static unsigned int error_formats = PR_ERROR_FORMAT_DEFAULT;
 
-struct err_registered_explainer {
-  struct err_registered_explainer *next, *prev;
+struct err_explainer {
+  struct err_explainer *next, *prev;
 
   module *m;
   const char *name;
   pr_error_explanations_t *explainers;
 };
 
+/* List of registered explainers. */
+static struct err_explainer *error_explainers = NULL;
+
 /* Currently selected explainers. */
-static struct err_registered_explainer *error_explainer = NULL;
+static struct err_explainer *error_explainer = NULL;
 
 struct errno_info {
   int error_number;
@@ -366,9 +369,7 @@ int pr_error_set_location(pr_error_t *err, module *m, const char *file,
   return 0;
 }
 
-int pr_error_set_operation(pr_error_t *err, const char *oper,
-    const char *args) {
-
+int pr_error_set_operation(pr_error_t *err, const char *oper) {
   if (err == NULL ||
       oper == NULL) {
     errno = EINVAL;
@@ -376,10 +377,6 @@ int pr_error_set_operation(pr_error_t *err, const char *oper,
   }
 
   err->err_oper = pstrdup(err->err_pool, oper);
-  if (args != NULL) {
-    err->err_args = pstrdup(err->err_pool, args);
-  }
-
   return 0;
 }
 
@@ -442,7 +439,7 @@ static const char *get_who(pr_error_t *err) {
       char gid[32];
 
       who = pstrcat(err->err_pool, who,
-        " (GID ", get_uid(gid, sizeof(gid)), ")", NULL);
+        " (GID ", get_gid(gid, sizeof(gid)), ")", NULL);
     }
 
   } else if (error_details & PR_ERROR_DETAILS_USE_IDS) {
@@ -480,17 +477,17 @@ static const char *get_why(pr_error_t *err) {
 
 /* Returns string of:
  *
- *  "in ${module} [${file}:${lineno}]"
+ *  "${module} [${file}:${lineno}]"
  */
 static const char *get_where(pr_error_t *err) {
   const char *where = NULL;
 
   if (error_details & PR_ERROR_DETAILS_USE_MODULE) {
     if (err->err_module != NULL) {
-      where = pstrcat(err->err_pool, "in mod_", err->err_module->name, NULL);
+      where = pstrcat(err->err_pool, "mod_", err->err_module->name, NULL);
 
     } else {
-      where = pstrcat(err->err_pool, "in core", NULL);
+      where = pstrdup(err->err_pool, "core");
     }
   }
 
@@ -499,11 +496,11 @@ static const char *get_where(pr_error_t *err) {
       int used_brackets = FALSE;
 
       if (where != NULL) {
-        where = pstrcat(err->err_pool, " [", err->err_file, NULL);
+        where = pstrcat(err->err_pool, where, " [", err->err_file, NULL);
         used_brackets = TRUE;
 
       } else {
-        where = pstrcat(err->err_pool, "in ", err->err_file, NULL);
+        where = pstrcat(err->err_pool, err->err_file, NULL);
       }
 
       if (err->err_lineno > 0) {
@@ -703,7 +700,12 @@ static const char *get_detailed_text(pool *p, const char *who, const char *why,
 
   if (what != NULL) {
     if (err_text != NULL) {
-      err_text = pstrcat(p, err_text, " but ", what, NULL);
+      if (why != NULL) {
+        err_text = pstrcat(p, err_text, " but ", what, NULL);
+
+      } else {
+        err_text = pstrcat(p, err_text, " attempted ", what, NULL);
+      }
 
     } else {
       err_text = what;
@@ -811,27 +813,141 @@ const char *pr_error_strerror(pr_error_t *err, int use_format) {
     }
   }
 
+  if (err_text == NULL) {
+    return strerror(err->err_errno);
+  }
+
   return err_text;
 }
 
 pr_error_explanations_t *pr_error_register_explanations(pool *p, module *m,
     const char *name) {
-  errno = ENOSYS;
-  return NULL;
+  struct err_explainer *ee;
+  pr_error_explanations_t *explainers;
+
+  if (p == NULL ||
+      name == NULL) {
+    errno = EINVAL;
+    return NULL;
+  }
+
+  /* Check for duplicate registrations. */
+  if (error_explainers != NULL) {
+    for (ee = error_explainers; ee; ee = ee->next) {
+      if ((m == ANY_MODULE || m == ee->m) &&
+          (strcmp(name, ee->name) == 0)) {
+        errno = EEXIST;
+        return NULL;
+      }
+    }
+  }
+
+  ee = pcalloc(p, sizeof(struct err_explainer));
+  ee->m = m;
+  ee->name = pstrdup(p, name);
+  explainers = pcalloc(p, sizeof(pr_error_explanations_t));
+  ee->explainers = explainers;
+
+  ee->next = error_explainers;
+  if (error_explainers != NULL) {
+    error_explainers->prev = ee;
+
+  } else {
+    error_explainers = ee;
+  }
+
+  if (error_explainer == NULL) {
+    /* If this is the first set of explainers registered, they become the
+     * de facto selected set of explainers.
+     */
+    error_explainer = ee;
+  }
+
+  return explainers;
 }
 
 int pr_error_unregister_explanations(pool *p, module *m, const char *name) {
+  struct err_explainer *ee;
+  int res = -1;
 
-  /* If the unregistered explanations are currently the default/selected
-   * ones, make sure to set that pointer to NULL!
-   */
+  (void) p;
 
-  errno = ENOSYS;
-  return -1;
+  /* We need either module or name (or both); both cannot be NULL. */
+  if (m == NULL &&
+      name == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  for (ee = error_explainers; ee; ee = ee->next) {
+    if ((m == ANY_MODULE || m == ee->m) &&
+        (name == NULL || strcmp(name, ee->name) == 0)) {
+
+      if (ee->prev != NULL) {
+        ee->prev->next = ee->next;
+
+      } else {
+        /* This explainer is the head of the explainers list, so we need
+         * to update the head pointer as well.
+         */
+        error_explainers = ee->next;
+      }
+
+      if (ee->next != NULL) {
+        ee->next->prev = ee->prev;
+      }
+
+      ee->prev = ee->next = NULL;
+
+      /* If the unregistered explanations are currently the default/selected
+       * ones, make sure to set that pointer to NULL, too.
+       */
+      if (ee == error_explainer) {
+        error_explainer = NULL;
+      }
+
+      res = 0;
+    }
+  }
+
+  if (res < 0) {
+    errno = ENOENT;
+  }
+
+  return res;
 }
 
 int pr_error_use_explanations(pool *p, module *m, const char *name) {
-  errno = ENOSYS;
+  struct err_explainer *ee;
+
+  (void) p;
+
+  if (error_explainers == NULL) {
+    errno = EPERM;
+    return -1;
+  }
+
+  if (name == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  if (error_explainer != NULL) {
+    if ((m == ANY_MODULE || m == error_explainer->m) &&
+        (strcmp(name, error_explainer->name) == 0)) {
+      return 0;
+    }
+  }
+
+  for (ee = error_explainers; ee; ee = ee->next) {
+    if ((m == ANY_MODULE || m == ee->m) &&
+        (strcmp(name, ee->name) == 0)) {
+      error_explainer = ee;
+      return 0;
+    }
+  }
+
+  errno = ENOENT;
   return -1;
 }
 
@@ -861,19 +977,94 @@ static void trace_explained_error(module *m, const char *name,
 
 int pr_error_explain_accept(pr_error_t *err, int fd, struct sockaddr *addr,
     socklen_t *addr_len) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "accept()";
+  int res = 0;
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    explained = (error_explainer->explainers->explain_accept)(err->err_pool,
+      err->err_errno, fd, addr, addr_len, &(err->err_args));
+    xerrno = errno;
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      res = -1;
+    }
+
+    err->err_oper = pstrdup(err->err_pool, oper);
+    err->err_explained = explained;
+
+  } else {
+    res = pr_error_set_operation(err, oper);
+  }
+
+  return res;
 }
 
 int pr_error_explain_bind(pr_error_t *err, int fd, const struct sockaddr *addr,
     socklen_t addr_len) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "bind()";
+  int res = 0;
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    explained = (error_explainer->explainers->explain_bind)(err->err_pool,
+      err->err_errno, fd, addr, addr_len, &(err->err_args));
+    xerrno = errno;
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      res = -1;
+    }
+
+    err->err_oper = pstrdup(err->err_pool, oper);
+    err->err_explained = explained;
+
+  } else {
+    res = pr_error_set_operation(err, oper);
+  }
+
+  return res;
 }
 
 int pr_error_explain_chdir(pr_error_t *err, const char *path, mode_t mode) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "chdir()";
+  int res = 0;
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    explained = (error_explainer->explainers->explain_chdir)(err->err_pool,
+      err->err_errno, path, mode, &(err->err_args));
+    xerrno = errno;
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      res = -1;
+    }
+
+    err->err_oper = pstrdup(err->err_pool, oper);
+    err->err_explained = explained;
+
+  } else {
+    res = pr_error_set_operation(err, oper);
+  }
+
+  return res;
 }
 
 int pr_error_explain_chmod(pr_error_t *err, const char *path, mode_t mode) {
@@ -1095,7 +1286,7 @@ int pr_error_explain_mkstemp(pr_error_t *err, char *tmpl) {
 
 int pr_error_explain_open(pr_error_t *err, const char *path, int flags,
     mode_t mode) {
-  const char *oper = "open";
+  const char *oper = "open()";
   int res = 0;
 
   if (error_explainer != NULL) {
@@ -1114,8 +1305,11 @@ int pr_error_explain_open(pr_error_t *err, const char *path, int flags,
       res = -1;
     }
 
+    err->err_oper = pstrdup(err->err_pool, oper);
+    err->err_explained = explained;
+
   } else {
-    res = pr_error_set_operation(err, oper, NULL);
+    res = pr_error_set_operation(err, oper);
   }
 
   return res;
