@@ -35,7 +35,7 @@ typedef struct err_rec pr_error_t;
 struct err_explain_rec {
   /* Explain accept(2) errors. */
   const char *(*explain_accept)(pool *p, int xerrno, int fd,
-   struct sockaddr *addr, socklen_t *addr_len, const char **args);
+    struct sockaddr *addr, socklen_t *addr_len, const char **args);
 
   /* Explain bind(2) errors. */
   const char *(*explain_bind)(pool *p, int xerrno, int fd,
@@ -43,7 +43,7 @@ struct err_explain_rec {
 
   /* Explain chdir(2) errors. */
   const char *(*explain_chdir)(pool *p, int xerrno, const char *path,
-    mode_t mode, const char **args);
+    const char **args);
 
   /* Explain chmod(2) errors. */
   const char *(*explain_chmod)(pool *p, int xerrno, const char *path,
@@ -147,15 +147,15 @@ struct err_explain_rec {
 
   /* Explain getpeername(2) errors. */
   const char *(*explain_getpeername)(pool *p, int xerrno, int fd,
-    struct sockaddr *addr, socklen_t addr_len, const char **args);
+    struct sockaddr *addr, socklen_t *addr_len, const char **args);
 
   /* Explain getrlimit(2) errors. */
   const char *(*explain_getrlimit)(pool *p, int xerrno, int resource,
     struct rlimit *rlim, const char **args);
 
   /* Explain getsockname(2) errors. */
-  const char *(*explain_getsockname)(pool *p, int xerrno, struct sockaddr *addr,
-    socklen_t *addr_len, const char **args);
+  const char *(*explain_getsockname)(pool *p, int xerrno, int fd,
+    struct sockaddr *addr, socklen_t *addr_len, const char **args);
 
   /* Explain getsockopt(2) errors. */
   const char *(*explain_getsockopt)(pool *p, int xerrno, int fd, int level,
@@ -222,8 +222,8 @@ struct err_explain_rec {
     char *buf, size_t sz, const char **args);
 
   /* Explain readv(2) errors. */
-  const char *(*explain_readv)(pool *p, int xerrno, int fd, void *buf,
-    size_t sz, const char **args);
+  const char *(*explain_readv)(pool *p, int xerrno, int fd,
+    const struct iovec *iov, int iov_len, const char **args);
 
   /* Explain rename(2) errors. */
   const char *(*explain_rename)(pool *p, int xerrno, const char *old_path,
@@ -275,7 +275,7 @@ struct err_explain_rec {
 
   /* Explain socket(2) errors. */
   const char *(*explain_socket)(pool *p, int xerrno, int domain, int type,
-    int proto);
+    int proto, const char **args);
 
   /* Explain stat(2) errors. */
   const char *(*explain_stat)(pool *p, int xerrno, const char *path,
@@ -375,7 +375,7 @@ int pr_error_explain_accept(pr_error_t *err, int fd,
 int pr_error_explain_bind(pr_error_t *err, int fd,
   const struct sockaddr *addr, socklen_t addr_len);
 
-int pr_error_explain_chdir(pr_error_t *err, const char *path, mode_t mode);
+int pr_error_explain_chdir(pr_error_t *err, const char *path);
 
 int pr_error_explain_chmod(pr_error_t *err, const char *path, mode_t mode);
 
@@ -435,12 +435,12 @@ int pr_error_explain_getnameinfo(pr_error_t *err, const struct sockaddr *addr,
   size_t service_len, int flags);
 
 int pr_error_explain_getpeername(pr_error_t *err, int fd, struct sockaddr *addr,
-  socklen_t addr_len);
+  socklen_t *addr_len);
 
 int pr_error_explain_getrlimit(pr_error_t *err, int resource,
   struct rlimit *rlim);
 
-int pr_error_explain_getsockname(pr_error_t *err, struct sockaddr *addr,
+int pr_error_explain_getsockname(pr_error_t *err, int fd, struct sockaddr *addr,
   socklen_t *addr_len);
 
 int pr_error_explain_getsockopt(pr_error_t *err, int fd, int level, int option,
@@ -474,14 +474,15 @@ int pr_error_explain_open(pr_error_t *err, const char *path, int flags,
 
 int pr_error_explain_opendir(pr_error_t *err, const char *path);
 
-int pr_eror_explain_read(pr_error_t *err, int fd, void *buf, size_t sz);
+int pr_error_explain_read(pr_error_t *err, int fd, void *buf, size_t sz);
 
 int pr_error_explain_readdir(pr_error_t *err, void *dirh);
 
 int pr_error_explain_readlink(pr_error_t *err, const char *path, char *buf,
   size_t sz);
 
-int pr_error_explain_readv(pr_error_t *err, int fd, void *buf, size_t sz);
+int pr_error_explain_readv(pr_error_t *err, int fd, const struct iovec *iov,
+  int iov_len);
 
 int pr_error_explain_rename(pr_error_t *err, const char *old_path,
   const char *new_path);

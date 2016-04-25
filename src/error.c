@@ -978,484 +978,2623 @@ static void trace_explained_error(module *m, const char *name,
 int pr_error_explain_accept(pr_error_t *err, int fd, struct sockaddr *addr,
     socklen_t *addr_len) {
   const char *oper = "accept()";
-  int res = 0;
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
 
   if (error_explainer != NULL) {
     const char *explained = NULL;
     int xerrno;
 
-    explained = (error_explainer->explainers->explain_accept)(err->err_pool,
-      err->err_errno, fd, addr, addr_len, &(err->err_args));
-    xerrno = errno;
+    if (error_explainer->explainers->explain_accept != NULL) {
+      explained = (error_explainer->explainers->explain_accept)(err->err_pool,
+        err->err_errno, fd, addr, addr_len, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
 
     if (explained == NULL) {
       trace_explained_error(error_explainer->m, error_explainer->name,
         oper, xerrno);
 
       errno = xerrno;
-      res = -1;
+      return -1;
     }
 
-    err->err_oper = pstrdup(err->err_pool, oper);
     err->err_explained = explained;
-
-  } else {
-    res = pr_error_set_operation(err, oper);
   }
 
-  return res;
+  return 0;
 }
 
 int pr_error_explain_bind(pr_error_t *err, int fd, const struct sockaddr *addr,
     socklen_t addr_len) {
   const char *oper = "bind()";
-  int res = 0;
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
 
   if (error_explainer != NULL) {
     const char *explained = NULL;
     int xerrno;
 
-    explained = (error_explainer->explainers->explain_bind)(err->err_pool,
-      err->err_errno, fd, addr, addr_len, &(err->err_args));
-    xerrno = errno;
+    if (error_explainer->explainers->explain_bind != NULL) {
+      explained = (error_explainer->explainers->explain_bind)(err->err_pool,
+        err->err_errno, fd, addr, addr_len, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
 
     if (explained == NULL) {
       trace_explained_error(error_explainer->m, error_explainer->name,
         oper, xerrno);
 
       errno = xerrno;
-      res = -1;
+      return -1;
     }
 
-    err->err_oper = pstrdup(err->err_pool, oper);
     err->err_explained = explained;
-
-  } else {
-    res = pr_error_set_operation(err, oper);
   }
 
-  return res;
+  return 0;
 }
 
-int pr_error_explain_chdir(pr_error_t *err, const char *path, mode_t mode) {
+int pr_error_explain_chdir(pr_error_t *err, const char *path) {
   const char *oper = "chdir()";
-  int res = 0;
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
 
   if (error_explainer != NULL) {
     const char *explained = NULL;
     int xerrno;
 
-    explained = (error_explainer->explainers->explain_chdir)(err->err_pool,
-      err->err_errno, path, mode, &(err->err_args));
-    xerrno = errno;
+    if (error_explainer->explainers->explain_chdir != NULL) {
+      explained = (error_explainer->explainers->explain_chdir)(err->err_pool,
+        err->err_errno, path, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
 
     if (explained == NULL) {
       trace_explained_error(error_explainer->m, error_explainer->name,
         oper, xerrno);
 
       errno = xerrno;
-      res = -1;
+      return -1;
     }
 
-    err->err_oper = pstrdup(err->err_pool, oper);
     err->err_explained = explained;
-
-  } else {
-    res = pr_error_set_operation(err, oper);
   }
 
-  return res;
+  return 0;
 }
 
 int pr_error_explain_chmod(pr_error_t *err, const char *path, mode_t mode) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "chmod()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_chmod != NULL) {
+      explained = (error_explainer->explainers->explain_chmod)(err->err_pool,
+        err->err_errno, path, mode, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_chown(pr_error_t *err, const char *path, uid_t uid,
     gid_t gid) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "chown()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_chown != NULL) {
+      explained = (error_explainer->explainers->explain_chown)(err->err_pool,
+        err->err_errno, path, uid, gid, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_chroot(pr_error_t *err, const char *path) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "chroot()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_chroot != NULL) {
+      explained = (error_explainer->explainers->explain_chroot)(err->err_pool,
+        err->err_errno, path, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_close(pr_error_t *err, int fd) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "close()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_close != NULL) {
+      explained = (error_explainer->explainers->explain_close)(err->err_pool,
+        err->err_errno, fd, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_closedir(pr_error_t *err, void *dirh) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "closedir()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_closedir != NULL) {
+      explained = (error_explainer->explainers->explain_closedir)(err->err_pool,
+        err->err_errno, dirh, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_connect(pr_error_t *err, int fd,
     const struct sockaddr *addr, socklen_t addr_len) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "connect()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_connect != NULL) {
+      explained = (error_explainer->explainers->explain_connect)(err->err_pool,
+        err->err_errno, fd, addr, addr_len, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_fchmod(pr_error_t *err, int fd, mode_t mode) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "fchmod()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_fchmod != NULL) {
+      explained = (error_explainer->explainers->explain_fchmod)(err->err_pool,
+        err->err_errno, fd, mode, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_fchown(pr_error_t *err, int fd, uid_t uid, gid_t gid) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "fchown()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_fchown != NULL) {
+      explained = (error_explainer->explainers->explain_fchown)(err->err_pool,
+        err->err_errno, fd, uid, gid, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_fclose(pr_error_t *err, FILE *fh) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "fclose()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_fclose != NULL) {
+      explained = (error_explainer->explainers->explain_fclose)(err->err_pool,
+        err->err_errno, fh, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
-int pr_error_explain_fcntl(pr_error_t *err, int fd, int oper, long arg) {
-  errno = ENOSYS;
-  return -1;
+int pr_error_explain_fcntl(pr_error_t *err, int fd, int op, long arg) {
+  const char *oper = "fcntl()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_fcntl != NULL) {
+      explained = (error_explainer->explainers->explain_fcntl)(err->err_pool,
+        err->err_errno, fd, op, arg, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_fdopen(pr_error_t *err, int fd, const char *mode) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "fdopen()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_fdopen != NULL) {
+      explained = (error_explainer->explainers->explain_fdopen)(err->err_pool,
+        err->err_errno, fd, mode, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
-int pr_error_explain_flock(pr_error_t *err, int fd, int oper) {
-  errno = ENOSYS;
-  return -1;
+int pr_error_explain_flock(pr_error_t *err, int fd, int op) {
+  const char *oper = "flock()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_flock != NULL) {
+      explained = (error_explainer->explainers->explain_flock)(err->err_pool,
+        err->err_errno, fd, op, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_fopen(pr_error_t *err, const char *path,
     const char *mode) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "fopen()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_fopen != NULL) {
+      explained = (error_explainer->explainers->explain_fopen)(err->err_pool,
+        err->err_errno, path, mode, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_fork(pr_error_t *err) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "fork()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_fork != NULL) {
+      explained = (error_explainer->explainers->explain_fork)(err->err_pool,
+        err->err_errno, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_fstat(pr_error_t *err, int fd, struct stat *st) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "fstat()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_fstat != NULL) {
+      explained = (error_explainer->explainers->explain_fstat)(err->err_pool,
+        err->err_errno, fd, st, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_fstatfs(pr_error_t *err, int fd, void *stfs) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "fstatfs()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_fstatfs != NULL) {
+      explained = (error_explainer->explainers->explain_fstatfs)(err->err_pool,
+        err->err_errno, fd, stfs, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_fstatvfs(pr_error_t *err, int fd, void *stfs) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "fstatvfs()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_fstatvfs != NULL) {
+      explained = (error_explainer->explainers->explain_fstatvfs)(err->err_pool,
+        err->err_errno, fd, stfs, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_fsync(pr_error_t *err, int fd) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "fsync()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_fsync != NULL) {
+      explained = (error_explainer->explainers->explain_fsync)(err->err_pool,
+        err->err_errno, fd, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_ftruncate(pr_error_t *err, int fd, off_t len) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "ftruncate()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_ftruncate != NULL) {
+      explained = (error_explainer->explainers->explain_ftruncate)(
+        err->err_pool, err->err_errno, fd, len, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_futimes(pr_error_t *err, int fd,
     const struct timeval *tvs) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "futimes()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_futimes != NULL) {
+      explained = (error_explainer->explainers->explain_futimes)(err->err_pool,
+        err->err_errno, fd, tvs, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_getaddrinfo(pr_error_t *err, const char *name,
     const char *service, const struct addrinfo *hints, struct addrinfo **res) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "getaddrinfo()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_getaddrinfo != NULL) {
+      explained = (error_explainer->explainers->explain_getaddrinfo)(
+        err->err_pool, err->err_errno, name, service, hints, res,
+        &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_gethostbyname(pr_error_t *err, const char *name) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "gethostbyname()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_gethostbyname != NULL) {
+      explained = (error_explainer->explainers->explain_gethostbyname)(
+        err->err_pool, err->err_errno, name, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_gethostbyname2(pr_error_t *err, const char *name,
     int family) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "gethostbyname2()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_gethostbyname2 != NULL) {
+      explained = (error_explainer->explainers->explain_gethostbyname2)(
+        err->err_pool, err->err_errno, name, family, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_gethostname(pr_error_t *err, char *buf, size_t sz) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "gethostname()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_gethostname != NULL) {
+      explained = (error_explainer->explainers->explain_gethostname)(
+        err->err_pool, err->err_errno, buf, sz, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_getnameinfo(pr_error_t *err, const struct sockaddr *addr,
     socklen_t addr_len, char *host, size_t host_len, char *service,
     size_t service_len, int flags) {
-  errno = ENOSYS;
-  return -1;
-}
+  const char *oper = "getnameinfo()";
 
-int pr_error_explain_getpeername(pr_error_t *err, int fd, struct sockaddr *addr,
-    socklen_t addr_len) {
-  errno = ENOSYS;
-  return -1;
-}
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
 
-int pr_error_explain_getrlimit(pr_error_t *err, int resource,
-    struct rlimit *rlim) {
-  errno = ENOSYS;
-  return -1;
-}
-
-int pr_error_explain_getsockname(pr_error_t *err, struct sockaddr *addr,
-    socklen_t *addr_len) {
-  errno = ENOSYS;
-  return -1;
-}
-
-int pr_error_explain_getsockopt(pr_error_t *err, int fd, int level, int option,
-    void *val, socklen_t *valsz) {
-  errno = ENOSYS;
-  return -1;
-}
-
-int pr_error_explain_gettimeofday(pr_error_t *err, struct timeval *tv,
-    void *tz) {
-  errno = ENOSYS;
-  return -1;
-}
-
-int pr_error_explain_lchmod(pr_error_t *err, const char *path, mode_t mode) {
-  errno = ENOSYS;
-  return -1;
-}
-
-int pr_error_explain_lchown(pr_error_t *err, const char *path, uid_t uid,
-    gid_t gid) {
-  errno = ENOSYS;
-  return -1;
-}
-
-int pr_error_explain_link(pr_error_t *err, const char *target_path,
-    const char *link_path) {
-  errno = ENOSYS;
-  return -1;
-}
-
-int pr_error_explain_listen(pr_error_t *err, int fd, int backlog) {
-  errno = ENOSYS;
-  return -1;
-}
-
-int pr_error_explain_lseek(pr_error_t *err, int fd, off_t offset, int whence) {
-  errno = ENOSYS;
-  return -1;
-}
-
-int pr_error_explain_lstat(pr_error_t *err, const char *path,
-    struct stat *st) {
-  errno = ENOSYS;
-  return -1;
-}
-
-int pr_error_explain_lutimes(pr_error_t *err, const char *path,
-    struct timeval *tvs) {
-  errno = ENOSYS;
-  return -1;
-}
-
-int pr_error_explain_mkdir(pr_error_t *err, const char *path, mode_t mode) {
-  errno = ENOSYS;
-  return -1;
-}
-
-int pr_error_explain_mkdtemp(pr_error_t *err, char *tmpl) {
-  errno = ENOSYS;
-  return -1;
-}
-
-int pr_error_explain_mkstemp(pr_error_t *err, char *tmpl) {
-  errno = ENOSYS;
-  return -1;
-}
-
-int pr_error_explain_open(pr_error_t *err, const char *path, int flags,
-    mode_t mode) {
-  const char *oper = "open()";
-  int res = 0;
+  (void) pr_error_set_operation(err, oper);
 
   if (error_explainer != NULL) {
     const char *explained = NULL;
     int xerrno;
 
-    explained = (error_explainer->explainers->explain_open)(err->err_pool,
-      err->err_errno, path, flags, mode, &(err->err_args));
-    xerrno = errno;
+    if (error_explainer->explainers->explain_getnameinfo != NULL) {
+      explained = (error_explainer->explainers->explain_getnameinfo)(
+        err->err_pool, err->err_errno, addr, addr_len, host, host_len, service,
+        service_len, flags, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
 
     if (explained == NULL) {
       trace_explained_error(error_explainer->m, error_explainer->name,
         oper, xerrno);
 
       errno = xerrno;
-      res = -1;
+      return -1;
     }
 
-    err->err_oper = pstrdup(err->err_pool, oper);
     err->err_explained = explained;
-
-  } else {
-    res = pr_error_set_operation(err, oper);
   }
 
-  return res;
+  return 0;
+}
+
+int pr_error_explain_getpeername(pr_error_t *err, int fd, struct sockaddr *addr,
+    socklen_t *addr_len) {
+  const char *oper = "getpeername()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_getpeername != NULL) {
+      explained = (error_explainer->explainers->explain_getpeername)(
+        err->err_pool, err->err_errno, fd, addr, addr_len, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
+}
+
+int pr_error_explain_getrlimit(pr_error_t *err, int resource,
+    struct rlimit *rlim) {
+  const char *oper = "getrlimit()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_getrlimit != NULL) {
+      explained = (error_explainer->explainers->explain_getrlimit)(
+        err->err_pool, err->err_errno, resource, rlim, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
+}
+
+int pr_error_explain_getsockname(pr_error_t *err, int fd, struct sockaddr *addr,
+    socklen_t *addr_len) {
+  const char *oper = "getsockname()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_getsockname != NULL) {
+      explained = (error_explainer->explainers->explain_getsockname)(
+        err->err_pool, err->err_errno, fd, addr, addr_len, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
+}
+
+int pr_error_explain_getsockopt(pr_error_t *err, int fd, int level, int option,
+    void *val, socklen_t *valsz) {
+  const char *oper = "getsockopt()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_getsockopt != NULL) {
+      explained = (error_explainer->explainers->explain_getsockopt)(
+        err->err_pool, err->err_errno, fd, level, option, val, valsz,
+        &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
+}
+
+int pr_error_explain_lchmod(pr_error_t *err, const char *path, mode_t mode) {
+  const char *oper = "lchmod()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_lchmod != NULL) {
+      explained = (error_explainer->explainers->explain_lchmod)(err->err_pool,
+        err->err_errno, path, mode, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
+}
+
+int pr_error_explain_lchown(pr_error_t *err, const char *path, uid_t uid,
+    gid_t gid) {
+  const char *oper = "lchown()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_lchown != NULL) {
+      explained = (error_explainer->explainers->explain_lchown)(err->err_pool,
+        err->err_errno, path, uid, gid, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
+}
+
+int pr_error_explain_link(pr_error_t *err, const char *target_path,
+    const char *link_path) {
+  const char *oper = "link()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_link != NULL) {
+      explained = (error_explainer->explainers->explain_link)(err->err_pool,
+        err->err_errno, target_path, link_path, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
+}
+
+int pr_error_explain_listen(pr_error_t *err, int fd, int backlog) {
+  const char *oper = "listen()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_listen != NULL) {
+      explained = (error_explainer->explainers->explain_listen)(err->err_pool,
+        err->err_errno, fd, backlog, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
+}
+
+int pr_error_explain_lseek(pr_error_t *err, int fd, off_t offset, int whence) {
+  const char *oper = "lseek()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_lseek != NULL) {
+      explained = (error_explainer->explainers->explain_lseek)(err->err_pool,
+        err->err_errno, fd, offset, whence, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
+}
+
+int pr_error_explain_lstat(pr_error_t *err, const char *path,
+    struct stat *st) {
+  const char *oper = "lstat()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_lstat != NULL) {
+      explained = (error_explainer->explainers->explain_lstat)(err->err_pool,
+        err->err_errno, path, st, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
+}
+
+int pr_error_explain_lutimes(pr_error_t *err, const char *path,
+    struct timeval *tvs) {
+  const char *oper = "lutimes()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_lutimes != NULL) {
+      explained = (error_explainer->explainers->explain_lutimes)(err->err_pool,
+        err->err_errno, path, tvs, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
+}
+
+int pr_error_explain_mkdir(pr_error_t *err, const char *path, mode_t mode) {
+  const char *oper = "mkdir()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_mkdir != NULL) {
+      explained = (error_explainer->explainers->explain_mkdir)(err->err_pool,
+        err->err_errno, path, mode, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
+}
+
+int pr_error_explain_mkdtemp(pr_error_t *err, char *tmpl) {
+  const char *oper = "mkdtemp()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_mkdtemp != NULL) {
+      explained = (error_explainer->explainers->explain_mkdtemp)(err->err_pool,
+        err->err_errno, tmpl, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
+}
+
+int pr_error_explain_mkstemp(pr_error_t *err, char *tmpl) {
+  const char *oper = "mkstemp()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_mkstemp != NULL) {
+      explained = (error_explainer->explainers->explain_mkstemp)(err->err_pool,
+        err->err_errno, tmpl, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
+}
+
+int pr_error_explain_open(pr_error_t *err, const char *path, int flags,
+    mode_t mode) {
+  const char *oper = "open()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_open != NULL) {
+      explained = (error_explainer->explainers->explain_open)(err->err_pool,
+        err->err_errno, path, flags, mode, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_opendir(pr_error_t *err, const char *path) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "opendir()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_opendir != NULL) {
+      explained = (error_explainer->explainers->explain_opendir)(err->err_pool,
+        err->err_errno, path, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
-int pr_eror_explain_read(pr_error_t *err, int fd, void *buf, size_t sz) {
-  errno = ENOSYS;
-  return -1;
+int pr_error_explain_read(pr_error_t *err, int fd, void *buf, size_t sz) {
+  const char *oper = "read()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_read != NULL) {
+      explained = (error_explainer->explainers->explain_read)(err->err_pool,
+        err->err_errno, fd, buf, sz, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_readdir(pr_error_t *err, void *dirh) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "readdir()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_readdir != NULL) {
+      explained = (error_explainer->explainers->explain_readdir)(err->err_pool,
+        err->err_errno, dirh, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_readlink(pr_error_t *err, const char *path, char *buf,
     size_t sz) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "readlink()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_readlink != NULL) {
+      explained = (error_explainer->explainers->explain_readlink)(err->err_pool,
+        err->err_errno, path, buf, sz, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
-int pr_error_explain_readv(pr_error_t *err, int fd, void *buf, size_t sz) {
-  errno = ENOSYS;
-  return -1;
+int pr_error_explain_readv(pr_error_t *err, int fd, const struct iovec *iov,
+    int iov_len) {
+  const char *oper = "readv()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_readv != NULL) {
+      explained = (error_explainer->explainers->explain_readv)(err->err_pool,
+        err->err_errno, fd, iov, iov_len, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_rename(pr_error_t *err, const char *old_path,
     const char *new_path) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "rename()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_rename != NULL) {
+      explained = (error_explainer->explainers->explain_rename)(err->err_pool,
+        err->err_errno, old_path, new_path, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_rmdir(pr_error_t *err, const char *path) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "rmdir()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_rmdir != NULL) {
+      explained = (error_explainer->explainers->explain_rmdir)(err->err_pool,
+        err->err_errno, path, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_setegid(pr_error_t *err, gid_t gid) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "setegid()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_setegid != NULL) {
+      explained = (error_explainer->explainers->explain_setegid)(err->err_pool,
+        err->err_errno, gid, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_seteuid(pr_error_t *err, uid_t uid) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "seteuid()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_seteuid != NULL) {
+      explained = (error_explainer->explainers->explain_seteuid)(err->err_pool,
+        err->err_errno, uid, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_setgid(pr_error_t *err, gid_t gid) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "setgid()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_setgid != NULL) {
+      explained = (error_explainer->explainers->explain_setgid)(err->err_pool,
+        err->err_errno, gid, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_setregid(pr_error_t *err, gid_t rgid, gid_t egid) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "setregid()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_setregid != NULL) {
+      explained = (error_explainer->explainers->explain_setregid)(err->err_pool,
+        err->err_errno, rgid, egid, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_setresgid(pr_error_t *err, gid_t rgid, gid_t egid,
     gid_t sgid) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "setresgid()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_setresgid != NULL) {
+      explained = (error_explainer->explainers->explain_setresgid)(
+        err->err_pool, err->err_errno, rgid, egid, sgid, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_setresuid(pr_error_t *err, uid_t ruid, uid_t euid,
     uid_t suid) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "setresuid()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_setresuid != NULL) {
+      explained = (error_explainer->explainers->explain_setresuid)(
+        err->err_pool, err->err_errno, ruid, euid, suid, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_setreuid(pr_error_t *err, uid_t ruid, uid_t euid) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "setreuid()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_setreuid != NULL) {
+      explained = (error_explainer->explainers->explain_setreuid)(err->err_pool,
+        err->err_errno, ruid, euid, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_setrlimit(pr_error_t *err, int resource,
     const struct rlimit *rlim) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "setrlimit()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_setrlimit != NULL) {
+      explained = (error_explainer->explainers->explain_setrlimit)(
+        err->err_pool, err->err_errno, resource, rlim, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_setsockopt(pr_error_t *err, int fd, int level, int option,
     const void *val, socklen_t valsz) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "setsockopt()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_setsockopt != NULL) {
+      explained = (error_explainer->explainers->explain_setsockopt)(
+        err->err_pool, err->err_errno, fd, level, option, val, valsz,
+        &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_setuid(pr_error_t *err, uid_t uid) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "setuid()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_setuid != NULL) {
+      explained = (error_explainer->explainers->explain_setuid)(err->err_pool,
+        err->err_errno, uid, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_socket(pr_error_t *err, int domain, int type, int proto) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "socket()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_socket != NULL) {
+      explained = (error_explainer->explainers->explain_socket)(err->err_pool,
+        err->err_errno, domain, type, proto, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_stat(pr_error_t *err, const char *path, struct stat *st) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "stat()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_stat != NULL) {
+      explained = (error_explainer->explainers->explain_stat)(err->err_pool,
+        err->err_errno, path, st, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_statfs(pr_error_t *err, const char *path, void *stfs) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "statfs()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_statfs != NULL) {
+      explained = (error_explainer->explainers->explain_statfs)(err->err_pool,
+        err->err_errno, path, stfs, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_statvfs(pr_error_t *err, const char *path, void *stfs) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "statvfs()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_statvfs != NULL) {
+      explained = (error_explainer->explainers->explain_statvfs)(err->err_pool,
+        err->err_errno, path, stfs, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_symlink(pr_error_t *err, const char *target_path,
     const char *link_path) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "symlink()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_symlink != NULL) {
+      explained = (error_explainer->explainers->explain_symlink)(err->err_pool,
+        err->err_errno, target_path, link_path, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_truncate(pr_error_t *err, const char *path, off_t len) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "truncate()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_truncate != NULL) {
+      explained = (error_explainer->explainers->explain_truncate)(err->err_pool,
+        err->err_errno, path, len, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_unlink(pr_error_t *err, const char *path) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "unlink()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_unlink != NULL) {
+      explained = (error_explainer->explainers->explain_unlink)(err->err_pool,
+        err->err_errno, path, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_utimes(pr_error_t *err, const char *path,
     const struct timeval *tvs) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "utimes()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_utimes != NULL) {
+      explained = (error_explainer->explainers->explain_utimes)(err->err_pool,
+        err->err_errno, path, tvs, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_write(pr_error_t *err, int fd, const void *buf,
     size_t sz) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "write()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_write != NULL) {
+      explained = (error_explainer->explainers->explain_write)(err->err_pool,
+        err->err_errno, fd, buf, sz, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }
 
 int pr_error_explain_writev(pr_error_t *err, int fd,
     const struct iovec *iov, int iov_len) {
-  errno = ENOSYS;
-  return -1;
+  const char *oper = "writev()";
+
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  (void) pr_error_set_operation(err, oper);
+
+  if (error_explainer != NULL) {
+    const char *explained = NULL;
+    int xerrno;
+
+    if (error_explainer->explainers->explain_writev != NULL) {
+      explained = (error_explainer->explainers->explain_writev)(err->err_pool,
+        err->err_errno, fd, iov, iov_len, &(err->err_args));
+      xerrno = errno;
+
+    } else {
+      xerrno = ENOSYS;
+    }
+
+    if (explained == NULL) {
+      trace_explained_error(error_explainer->m, error_explainer->name,
+        oper, xerrno);
+
+      errno = xerrno;
+      return -1;
+    }
+
+    err->err_explained = explained;
+  }
+
+  return 0;
 }

@@ -569,7 +569,7 @@ START_TEST (error_strerror_detailed_test) {
 }
 END_TEST
 
-static const char *test_explain_open(pool *err_pool, int xerrno,
+static const char *test_explainer(pool *err_pool, int xerrno,
     const char *path, int flags, mode_t mode, const char **args) {
   *args = pstrcat(err_pool, "path = '", path,
     "', flags = O_RDONLY, mode = 0755", NULL);
@@ -607,7 +607,7 @@ START_TEST (error_strerror_detailed_explained_test) {
   fail_unless(res2 == 0, "Failed to set location: %s", strerror(errno));
 
   explainers = pr_error_register_explanations(p, &m, "error");
-  explainers->explain_open = test_explain_open;
+  explainers->explain_open = test_explainer;
 
   res2 = pr_error_explain_open(err, "path", O_RDONLY, 0755);
   fail_unless(res2 == 0, "Failed to explain error: %s", strerror(errno));
@@ -626,7 +626,4493 @@ START_TEST (error_strerror_detailed_explained_test) {
   (void) pr_error_unregister_explanations(p, &m, NULL);
   pr_error_destroy(err);
 }
+END_TEST
 
+static int test_explain_return_eperm = FALSE;
+
+/* accept */
+static const char *test_explain_accept(pool *err_pool, int xerrno, int fd,
+    struct sockaddr *addr, socklen_t *addr_len, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_accept_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_accept(NULL, -1, NULL, NULL);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_accept(err, -1, NULL, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_accept(err, -1, NULL, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_accept = test_explain_accept;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_accept(err, -1, NULL, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_accept(err, -1, NULL, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* bind */
+static const char *test_explain_bind(pool *err_pool, int xerrno, int fd,
+    const struct sockaddr *addr, socklen_t addr_len, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_bind_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_bind(NULL, -1, NULL, 0);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_bind(err, -1, NULL, 0);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_bind(err, -1, NULL, 0);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_bind = test_explain_bind;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_bind(err, -1, NULL, 0);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_bind(err, -1, NULL, 0);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* chdir */
+static const char *test_explain_chdir(pool *err_pool, int xerrno,
+    const char *path, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_chdir_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_chdir(NULL, NULL);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_chdir(err, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_chdir(err, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_chdir = test_explain_chdir;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_chdir(err, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_chdir(err, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* chmod */
+static const char *test_explain_chmod(pool *err_pool, int xerrno,
+    const char *path, mode_t mode, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_chmod_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_chmod(NULL, NULL, 0);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_chmod(err, NULL, 0);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_chmod(err, NULL, 0);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_chmod = test_explain_chmod;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_chmod(err, NULL, 0);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_chmod(err, NULL, 0);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* chown */
+static const char *test_explain_chown(pool *err_pool, int xerrno,
+    const char *path, uid_t uid, gid_t gid, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_chown_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_chown(NULL, NULL, -1, -1);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_chown(err, NULL, -1, -1);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_chown(err, NULL, -1, -1);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_chown = test_explain_chown;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_chown(err, NULL, -1, -1);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_chown(err, NULL, -1, -1);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* chroot */
+static const char *test_explain_chroot(pool *err_pool, int xerrno,
+    const char *path, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_chroot_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_chroot(NULL, NULL);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_chroot(err, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_chroot(err, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_chroot = test_explain_chroot;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_chroot(err, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_chroot(err, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* close */
+static const char *test_explain_close(pool *err_pool, int xerrno, int fd,
+    const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_close_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_close(NULL, -1);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_close(err, -1);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_close(err, -1);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_close = test_explain_close;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_close(err, -1);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_close(err, -1);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* closedir */
+static const char *test_explain_closedir(pool *err_pool, int xerrno,
+    void *dirh, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_closedir_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_closedir(NULL, NULL);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_closedir(err, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_closedir(err, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_closedir = test_explain_closedir;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_closedir(err, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_closedir(err, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* connect */
+static const char *test_explain_connect(pool *err_pool, int xerrno, int fd,
+    const struct sockaddr *addr, socklen_t addr_len, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_connect_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_connect(NULL, -1, NULL, 0);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_connect(err, -1, NULL, 0);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_connect(err, -1, NULL, 0);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_connect = test_explain_connect;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_connect(err, -1, NULL, 0);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_connect(err, -1, NULL, 0);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* fchmod */
+static const char *test_explain_fchmod(pool *err_pool, int xerrno, int fd,
+    mode_t mode, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_fchmod_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_fchmod(NULL, -1, 0);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_fchmod(err, -1, 0);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_fchmod(err, -1, 0);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_fchmod = test_explain_fchmod;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_fchmod(err, -1, 0);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_fchmod(err, -1, 0);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* fchown */
+static const char *test_explain_fchown(pool *err_pool, int xerrno, int fd,
+    uid_t uid, gid_t gid, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_fchown_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_fchown(NULL, -1, -1, -1);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_fchown(err, -1, -1, -1);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_fchown(err, -1, -1, -1);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_fchown = test_explain_fchown;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_fchown(err, -1, -1, -1);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_fchown(err, -1, -1, -1);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* fclose */
+static const char *test_explain_fclose(pool *err_pool, int xerrno, FILE *fh,
+    const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_fclose_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_fclose(NULL, NULL);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_fclose(err, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_fclose(err, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_fclose = test_explain_fclose;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_fclose(err, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_fclose(err, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* fcntl */
+static const char *test_explain_fcntl(pool *err_pool, int xerrno, int fd,
+    int op, long arg, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_fcntl_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_fcntl(NULL, -1, -1, -1);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_fcntl(err, -1, -1, -1);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_fcntl(err, -1, -1, -1);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_fcntl = test_explain_fcntl;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_fcntl(err, -1, -1, -1);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_fcntl(err, -1, -1, -1);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* fdopen */
+static const char *test_explain_fdopen(pool *err_pool, int xerrno, int fd,
+    const char *mode, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_fdopen_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_fdopen(NULL, -1, NULL);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_fdopen(err, -1, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_fdopen(err, -1, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_fdopen = test_explain_fdopen;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_fdopen(err, -1, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_fdopen(err, -1, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* flock */
+static const char *test_explain_flock(pool *err_pool, int xerrno, int fd,
+    int op, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_flock_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_flock(NULL, -1, -1);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_flock(err, -1, -1);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_flock(err, -1, -1);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_flock = test_explain_flock;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_flock(err, -1, -1);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_flock(err, -1, -1);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* fopen */
+static const char *test_explain_fopen(pool *err_pool, int xerrno,
+    const char *path, const char *mode, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_fopen_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_fopen(NULL, NULL, NULL);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_fopen(err, NULL, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_fopen(err, NULL, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_fopen = test_explain_fopen;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_fopen(err, NULL, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_fopen(err, NULL, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* fork */
+static const char *test_explain_fork(pool *err_pool, int xerrno,
+    const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_fork_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_fork(NULL);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_fork(err);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_fork(err);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_fork = test_explain_fork;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_fork(err);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_fork(err);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* fstat */
+static const char *test_explain_fstat(pool *err_pool, int xerrno, int fd,
+    struct stat *st, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_fstat_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_fstat(NULL, -1, NULL);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_fstat(err, -1, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_fstat(err, -1, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_fstat = test_explain_fstat;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_fstat(err, -1, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_fstat(err, -1, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* fstatfs */
+static const char *test_explain_fstatfs(pool *err_pool, int xerrno, int fd,
+    void *stfs, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_fstatfs_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_fstatfs(NULL, -1, NULL);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_fstatfs(err, -1, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_fstatfs(err, -1, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_fstatfs = test_explain_fstatfs;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_fstatfs(err, -1, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_fstatfs(err, -1, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* fstatvfs */
+static const char *test_explain_fstatvfs(pool *err_pool, int xerrno, int fd,
+    void *stfs, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_fstatvfs_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_fstatvfs(NULL, -1, NULL);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_fstatvfs(err, -1, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_fstatvfs(err, -1, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_fstatvfs = test_explain_fstatvfs;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_fstatvfs(err, -1, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_fstatvfs(err, -1, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* fsync */
+static const char *test_explain_fsync(pool *err_pool, int xerrno, int fd,
+    const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_fsync_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_fsync(NULL, -1);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_fsync(err, -1);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_fsync(err, -1);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_fsync = test_explain_fsync;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_fsync(err, -1);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_fsync(err, -1);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* ftruncate */
+static const char *test_explain_ftruncate(pool *err_pool, int xerrno, int fd,
+    off_t len, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_ftruncate_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_ftruncate(NULL, -1, 0);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_ftruncate(err, -1, 0);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_ftruncate(err, -1, 0);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_ftruncate = test_explain_ftruncate;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_ftruncate(err, -1, 0);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_ftruncate(err, -1, 0);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* futimes */
+static const char *test_explain_futimes(pool *err_pool, int xerrno, int fd,
+    const struct timeval *tvs, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_futimes_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_futimes(NULL, -1, NULL);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_futimes(err, -1, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_futimes(err, -1, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_futimes = test_explain_futimes;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_futimes(err, -1, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_futimes(err, -1, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* getaddrinfo */
+static const char *test_explain_getaddrinfo(pool *err_pool, int xerrno,
+    const char *name, const char *service, const struct addrinfo *hints,
+    struct addrinfo **res, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_getaddrinfo_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_getaddrinfo(NULL, NULL, NULL, NULL, NULL);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_getaddrinfo(err, NULL, NULL, NULL, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_getaddrinfo(err, NULL, NULL, NULL, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_getaddrinfo = test_explain_getaddrinfo;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_getaddrinfo(err, NULL, NULL, NULL, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_getaddrinfo(err, NULL, NULL, NULL, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* gethostbyname */
+static const char *test_explain_gethostbyname(pool *err_pool, int xerrno,
+    const char *name, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_gethostbyname_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_gethostbyname(NULL, NULL);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_gethostbyname(err, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_gethostbyname(err, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_gethostbyname = test_explain_gethostbyname;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_gethostbyname(err, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_gethostbyname(err, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* gethostbyname2 */
+static const char *test_explain_gethostbyname2(pool *err_pool, int xerrno,
+    const char *name, int family, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_gethostbyname2_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_gethostbyname2(NULL, NULL, 0);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_gethostbyname2(err, NULL, 0);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_gethostbyname2(err, NULL, 0);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_gethostbyname2 = test_explain_gethostbyname2;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_gethostbyname2(err, NULL, 0);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_gethostbyname2(err, NULL, 0);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* gethostname */
+static const char *test_explain_gethostname(pool *err_pool, int xerrno,
+    char *buf, size_t sz, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_gethostname_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_gethostname(NULL, NULL, 0);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_gethostname(err, NULL, 0);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_gethostname(err, NULL, 0);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_gethostname = test_explain_gethostname;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_gethostname(err, NULL, 0);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_gethostname(err, NULL, 0);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* getnameinfo */
+static const char *test_explain_getnameinfo(pool *err_pool, int xerrno,
+    const struct sockaddr *addr, socklen_t addr_len,
+    char *host, size_t host_len, char *service, size_t service_len, int flags,
+    const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_getnameinfo_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_getnameinfo(NULL, NULL, 0, NULL, 0, NULL, 0, 0);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_getnameinfo(err, NULL, 0, NULL, 0, NULL, 0, 0);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_getnameinfo(err, NULL, 0, NULL, 0, NULL, 0, 0);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_getnameinfo = test_explain_getnameinfo;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_getnameinfo(err, NULL, 0, NULL, 0, NULL, 0, 0);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_getnameinfo(err, NULL, 0, NULL, 0, NULL, 0, 0);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* getpeername */
+static const char *test_explain_getpeername(pool *err_pool, int xerrno,
+    int fd, struct sockaddr *addr, socklen_t *addr_len, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_getpeername_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_getpeername(NULL, -1, NULL, 0);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_getpeername(err, -1, NULL, 0);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_getpeername(err, -1, NULL, 0);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_getpeername = test_explain_getpeername;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_getpeername(err, -1, NULL, 0);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_getpeername(err, -1, NULL, 0);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* getrlimit */
+static const char *test_explain_getrlimit(pool *err_pool, int xerrno,
+    int resource, struct rlimit *rlim, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_getrlimit_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_getrlimit(NULL, -1, NULL);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_getrlimit(err, -1, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_getrlimit(err, -1, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_getrlimit = test_explain_getrlimit;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_getrlimit(err, -1, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_getrlimit(err, -1, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* getsockname */
+static const char *test_explain_getsockname(pool *err_pool, int xerrno,
+    int fd, struct sockaddr *addr, socklen_t *addr_len, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_getsockname_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_getsockname(NULL, -1, NULL, NULL);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_getsockname(err, -1, NULL, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_getsockname(err, -1, NULL, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_getsockname = test_explain_getsockname;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_getsockname(err, -1, NULL, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_getsockname(err, -1, NULL, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* getsockopt */
+static const char *test_explain_getsockopt(pool *err_pool, int xerrno,
+    int fd, int level, int option, void *val, socklen_t *valsz,
+    const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_getsockopt_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_getsockopt(NULL, -1, -1, -1, NULL, NULL);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_getsockopt(err, -1, -1, -1, NULL, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_getsockopt(err, -1, -1, -1, NULL, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_getsockopt = test_explain_getsockopt;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_getsockopt(err, -1, -1, -1, NULL, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_getsockopt(err, -1, -1, -1, NULL, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* lchmod */
+static const char *test_explain_lchmod(pool *err_pool, int xerrno,
+    const char *path, mode_t mode, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_lchmod_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_lchmod(NULL, NULL, 0);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_lchmod(err, NULL, 0);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_lchmod(err, NULL, 0);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_lchmod = test_explain_lchmod;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_lchmod(err, NULL, 0);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_lchmod(err, NULL, 0);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* lchown */
+static const char *test_explain_lchown(pool *err_pool, int xerrno,
+    const char *path, uid_t uid, gid_t gid, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_lchown_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_lchown(NULL, NULL, -1, -1);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_lchown(err, NULL, -1, -1);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_lchown(err, NULL, -1, -1);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_lchown = test_explain_lchown;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_lchown(err, NULL, -1, -1);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_lchown(err, NULL, -1, -1);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* link */
+static const char *test_explain_link(pool *err_pool, int xerrno,
+    const char *target_path, const char *link_path, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_link_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_link(NULL, NULL, NULL);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_link(err, NULL, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_link(err, NULL, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_link = test_explain_link;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_link(err, NULL, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_link(err, NULL, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* listen */
+static const char *test_explain_listen(pool *err_pool, int xerrno, int fd,
+    int backlog, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_listen_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_listen(NULL, -1, -1);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_listen(err, -1, -1);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_listen(err, -1, -1);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_listen = test_explain_listen;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_listen(err, -1, -1);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_listen(err, -1, -1);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* lseek */
+static const char *test_explain_lseek(pool *err_pool, int xerrno, int fd,
+    off_t offset, int whence, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_lseek_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_lseek(NULL, -1, 0, -1);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_lseek(err, -1, 0, -1);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_lseek(err, -1, 0, -1);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_lseek = test_explain_lseek;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_lseek(err, -1, 0, -1);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_lseek(err, -1, 0, -1);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* lstat */
+static const char *test_explain_lstat(pool *err_pool, int xerrno,
+    const char *path, struct stat *st, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_lstat_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_lstat(NULL, NULL, NULL);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_lstat(err, NULL, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_lstat(err, NULL, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_lstat = test_explain_lstat;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_lstat(err, NULL, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_lstat(err, NULL, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* lutimes */
+static const char *test_explain_lutimes(pool *err_pool, int xerrno,
+    const char *path, struct timeval *tvs, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_lutimes_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_lutimes(NULL, NULL, NULL);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_lutimes(err, NULL, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_lutimes(err, NULL, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_lutimes = test_explain_lutimes;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_lutimes(err, NULL, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_lutimes(err, NULL, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* mkdir */
+static const char *test_explain_mkdir(pool *err_pool, int xerrno,
+    const char *path, mode_t mode, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_mkdir_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_mkdir(NULL, NULL, 0);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_mkdir(err, NULL, 0);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_mkdir(err, NULL, 0);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_mkdir = test_explain_mkdir;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_mkdir(err, NULL, 0);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_mkdir(err, NULL, 0);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* mkdtemp */
+static const char *test_explain_mkdtemp(pool *err_pool, int xerrno,
+    char *tmpl, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_mkdtemp_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_mkdtemp(NULL, NULL);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_mkdtemp(err, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_mkdtemp(err, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_mkdtemp = test_explain_mkdtemp;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_mkdtemp(err, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_mkdtemp(err, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* mkstemp */
+static const char *test_explain_mkstemp(pool *err_pool, int xerrno,
+    char *tmpl, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_mkstemp_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_mkstemp(NULL, NULL);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_mkstemp(err, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_mkstemp(err, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_mkstemp = test_explain_mkstemp;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_mkstemp(err, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_mkstemp(err, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* open */
+static const char *test_explain_open(pool *err_pool, int xerrno,
+    const char *path, int flags, mode_t mode, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_open_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_open(NULL, NULL, 0, 0);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_open(err, NULL, 0, 0);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_open(err, NULL, 0, 0);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_open = test_explain_open;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_open(err, NULL, 0, 0);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_open(err, NULL, 0, 0);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* opendir */
+static const char *test_explain_opendir(pool *err_pool, int xerrno,
+    const char *path, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_opendir_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_opendir(NULL, NULL);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_opendir(err, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_opendir(err, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_opendir = test_explain_opendir;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_opendir(err, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_opendir(err, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* read */
+static const char *test_explain_read(pool *err_pool, int xerrno, int fd,
+    void *buf, size_t sz, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_read_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_read(NULL, -1, NULL, 0);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_read(err, -1, NULL, 0);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_read(err, -1, NULL, 0);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_read = test_explain_read;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_read(err, -1, NULL, 0);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_read(err, -1, NULL, 0);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* readdir */
+static const char *test_explain_readdir(pool *err_pool, int xerrno, void *dirh,
+    const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_readdir_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_readdir(NULL, NULL);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_readdir(err, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_readdir(err, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_readdir = test_explain_readdir;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_readdir(err, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_readdir(err, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* readlink */
+static const char *test_explain_readlink(pool *err_pool, int xerrno,
+    const char *path, char *buf, size_t sz, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_readlink_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_readlink(NULL, NULL, NULL, 0);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_readlink(err, NULL, NULL, 0);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_readlink(err, NULL, NULL, 0);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_readlink = test_explain_readlink;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_readlink(err, NULL, NULL, 0);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_readlink(err, NULL, NULL, 0);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* readv */
+static const char *test_explain_readv(pool *err_pool, int xerrno, int fd,
+    const struct iovec *iov, int iov_len, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_readv_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_readv(NULL, -1, NULL, 0);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_readv(err, -1, NULL, 0);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_readv(err, -1, NULL, 0);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_readv = test_explain_readv;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_readv(err, -1, NULL, 0);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_readv(err, -1, NULL, 0);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* rename */
+static const char *test_explain_rename(pool *err_pool, int xerrno,
+    const char *old_path, const char *new_path, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_rename_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_rename(NULL, NULL, NULL);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_rename(err, NULL, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_rename(err, NULL, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_rename = test_explain_rename;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_rename(err, NULL, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_rename(err, NULL, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* rmdir */
+static const char *test_explain_rmdir(pool *err_pool, int xerrno,
+    const char *path, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_rmdir_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_rmdir(NULL, NULL);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_rmdir(err, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_rmdir(err, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_rmdir = test_explain_rmdir;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_rmdir(err, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_rmdir(err, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* setegid */
+static const char *test_explain_setegid(pool *err_pool, int xerrno,
+    gid_t egid, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_setegid_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_setegid(NULL, -1);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_setegid(err, -1);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_setegid(err, -1);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_setegid = test_explain_setegid;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_setegid(err, -1);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_setegid(err, -1);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* seteuid */
+static const char *test_explain_seteuid(pool *err_pool, int xerrno,
+    uid_t euid, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_seteuid_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_seteuid(NULL, -1);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_seteuid(err, -1);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_seteuid(err, -1);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_seteuid = test_explain_seteuid;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_seteuid(err, -1);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_seteuid(err, -1);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* setgid */
+static const char *test_explain_setgid(pool *err_pool, int xerrno,
+    gid_t gid, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_setgid_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_setgid(NULL, -1);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_setgid(err, -1);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_setgid(err, -1);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_setgid = test_explain_setgid;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_setgid(err, -1);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_setgid(err, -1);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* setregid */
+static const char *test_explain_setregid(pool *err_pool, int xerrno,
+    gid_t rgid, gid_t egid, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_setregid_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_setregid(NULL, -1, -1);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_setregid(err, -1, -1);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_setregid(err, -1, -1);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_setregid = test_explain_setregid;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_setregid(err, -1, -1);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_setregid(err, -1, -1);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* setresgid */
+static const char *test_explain_setresgid(pool *err_pool, int xerrno,
+    gid_t rgid, gid_t egid, gid_t sgid, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_setresgid_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_setresgid(NULL, -1, -1, -1);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_setresgid(err, -1, -1, -1);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_setresgid(err, -1, -1, -1);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_setresgid = test_explain_setresgid;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_setresgid(err, -1, -1, -1);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_setresgid(err, -1, -1, -1);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* setresuid */
+static const char *test_explain_setresuid(pool *err_pool, int xerrno,
+    uid_t ruid, uid_t euid, uid_t suid, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_setresuid_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_setresuid(NULL, -1, -1, -1);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_setresuid(err, -1, -1, -1);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_setresuid(err, -1, -1, -1);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_setresuid = test_explain_setresuid;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_setresuid(err, -1, -1, -1);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_setresuid(err, -1, -1, -1);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* setreuid */
+static const char *test_explain_setreuid(pool *err_pool, int xerrno,
+    uid_t ruid, uid_t euid, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_setreuid_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_setreuid(NULL, -1, -1);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_setreuid(err, -1, -1);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_setreuid(err, -1, -1);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_setreuid = test_explain_setreuid;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_setreuid(err, -1, -1);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_setreuid(err, -1, -1);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* setrlimit */
+static const char *test_explain_setrlimit(pool *err_pool, int xerrno,
+    int resource, const struct rlimit *rlim, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_setrlimit_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_setrlimit(NULL, -1, NULL);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_setrlimit(err, -1, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_setrlimit(err, -1, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_setrlimit = test_explain_setrlimit;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_setrlimit(err, -1, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_setrlimit(err, -1, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* setsockopt */
+static const char *test_explain_setsockopt(pool *err_pool, int xerrno, int fd,
+    int level, int option, const void *val, socklen_t valsz,
+    const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_setsockopt_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_setsockopt(NULL, -1, -1, -1, NULL, 0);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_setsockopt(err, -1, -1, -1, NULL, 0);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_setsockopt(err, -1, -1, -1, NULL, 0);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_setsockopt = test_explain_setsockopt;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_setsockopt(err, -1, -1, -1, NULL, 0);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_setsockopt(err, -1, -1, -1, NULL, 0);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* setuid */
+static const char *test_explain_setuid(pool *err_pool, int xerrno,
+    uid_t uid, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_setuid_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_setuid(NULL, -1);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_setuid(err, -1);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_setuid(err, -1);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_setuid = test_explain_setuid;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_setuid(err, -1);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_setuid(err, -1);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* socket */
+static const char *test_explain_socket(pool *err_pool, int xerrno,
+    int domain, int type, int proto, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_socket_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_socket(NULL, -1, -1, -1);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_socket(err, -1, -1, -1);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_socket(err, -1, -1, -1);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_socket = test_explain_socket;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_socket(err, -1, -1, -1);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_socket(err, -1, -1, -1);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* stat */
+static const char *test_explain_stat(pool *err_pool, int xerrno,
+    const char *path, struct stat *st, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_stat_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_stat(NULL, NULL, NULL);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_stat(err, NULL, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_stat(err, NULL, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_stat = test_explain_stat;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_stat(err, NULL, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_stat(err, NULL, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* statfs */
+static const char *test_explain_statfs(pool *err_pool, int xerrno,
+    const char *path, void *stfs, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_statfs_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_statfs(NULL, NULL, NULL);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_statfs(err, NULL, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_statfs(err, NULL, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_statfs = test_explain_statfs;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_statfs(err, NULL, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_statfs(err, NULL, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* statvfs */
+static const char *test_explain_statvfs(pool *err_pool, int xerrno,
+    const char *path, void *stfs, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_statvfs_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_statvfs(NULL, NULL, NULL);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_statvfs(err, NULL, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_statvfs(err, NULL, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_statvfs = test_explain_statvfs;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_statvfs(err, NULL, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_statvfs(err, NULL, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* symlink */
+static const char *test_explain_symlink(pool *err_pool, int xerrno,
+    const char *target_path, const char *link_path, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_symlink_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_symlink(NULL, NULL, NULL);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_symlink(err, NULL, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_symlink(err, NULL, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_symlink = test_explain_symlink;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_symlink(err, NULL, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_symlink(err, NULL, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* truncate */
+static const char *test_explain_truncate(pool *err_pool, int xerrno,
+    const char *path, off_t len, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_truncate_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_truncate(NULL, NULL, 0);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_truncate(err, NULL, 0);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_truncate(err, NULL, 0);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_truncate = test_explain_truncate;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_truncate(err, NULL, 0);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_truncate(err, NULL, 0);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* unlink */
+static const char *test_explain_unlink(pool *err_pool, int xerrno,
+    const char *path, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_unlink_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_unlink(NULL, NULL);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_unlink(err, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_unlink(err, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_unlink = test_explain_unlink;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_unlink(err, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_unlink(err, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* utimes */
+static const char *test_explain_utimes(pool *err_pool, int xerrno,
+    const char *path, const struct timeval *tvs, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_utimes_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_utimes(NULL, NULL, NULL);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_utimes(err, NULL, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_utimes(err, NULL, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_utimes = test_explain_utimes;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_utimes(err, NULL, NULL);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_utimes(err, NULL, NULL);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* write */
+static const char *test_explain_write(pool *err_pool, int xerrno, int fd,
+    const void *buf, size_t sz, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_write_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_write(NULL, -1, NULL, 0);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_write(err, -1, NULL, 0);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_write(err, -1, NULL, 0);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_write = test_explain_write;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_write(err, -1, NULL, 0);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_write(err, -1, NULL, 0);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+/* writev */
+static const char *test_explain_writev(pool *err_pool, int xerrno, int fd,
+    const struct iovec *iov, int iov_len, const char **args) {
+
+  if (test_explain_return_eperm == TRUE) {
+    errno = EPERM;
+    return NULL;
+  }
+
+  return pstrdup(err_pool, "it was not meant to be");
+}
+
+START_TEST (error_explain_writev_test) {
+  int res, xerrno;
+  pr_error_t *err;
+  pr_error_explanations_t *explainers;
+  module m;
+  const char *name;
+
+  res = pr_error_explain_writev(NULL, -1, NULL, 0);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EINVAL;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_explain_writev(err, -1, NULL, 0);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  memset(&m, 0, sizeof(m));
+  m.name = "error";
+  name = "testsuite";
+
+  explainers = pr_error_register_explanations(p, &m, name);
+  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
+    name, strerror(errno));
+
+  res = pr_error_explain_writev(err, -1, NULL, 0);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
+    strerror(errno), errno);
+
+  explainers->explain_writev = test_explain_writev;
+  test_explain_return_eperm = TRUE;
+
+  res = pr_error_explain_writev(err, -1, NULL, 0);
+  fail_unless(res < 0, "Unexpectedly explained error");
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  test_explain_return_eperm = FALSE;
+  res = pr_error_explain_writev(err, -1, NULL, 0);
+  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
+
+  res = pr_error_unregister_explanations(p, &m, name);
+  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
+    strerror(errno));
+
+  pr_error_destroy(err);
+}
 END_TEST
 
 Suite *tests_get_error_suite(void) {
@@ -649,11 +5135,6 @@ Suite *tests_get_error_suite(void) {
   tcase_add_test(testcase, error_strerror_detailed_test);
   tcase_add_test(testcase, error_strerror_detailed_explained_test);
 
-#if 0
-
-/* These tests need to cover with and without explainers.  And with explainers,
- * test null/non-null explanations
- */
   tcase_add_test(testcase, error_explain_accept_test);
   tcase_add_test(testcase, error_explain_bind_test);
   tcase_add_test(testcase, error_explain_chdir_test);
@@ -678,7 +5159,6 @@ Suite *tests_get_error_suite(void) {
   tcase_add_test(testcase, error_explain_ftruncate_test);
   tcase_add_test(testcase, error_explain_futimes_test);
   tcase_add_test(testcase, error_explain_getaddrinfo_test);
-  tcase_add_test(testcase, error_explain_getcwd_test);
   tcase_add_test(testcase, error_explain_gethostbyname_test);
   tcase_add_test(testcase, error_explain_gethostbyname2_test);
   tcase_add_test(testcase, error_explain_gethostname_test);
@@ -687,7 +5167,6 @@ Suite *tests_get_error_suite(void) {
   tcase_add_test(testcase, error_explain_getrlimit_test);
   tcase_add_test(testcase, error_explain_getsockname_test);
   tcase_add_test(testcase, error_explain_getsockopt_test);
-  tcase_add_test(testcase, error_explain_gettimeofday_test);
   tcase_add_test(testcase, error_explain_lchmod_test);
   tcase_add_test(testcase, error_explain_lchown_test);
   tcase_add_test(testcase, error_explain_link_test);
@@ -726,7 +5205,6 @@ Suite *tests_get_error_suite(void) {
   tcase_add_test(testcase, error_explain_utimes_test);
   tcase_add_test(testcase, error_explain_write_test);
   tcase_add_test(testcase, error_explain_writev_test);
-#endif
 
   suite_add_tcase(suite, testcase);
   return suite;
