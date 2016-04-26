@@ -319,6 +319,9 @@ typedef struct err_explain_rec pr_error_explanations_t;
 pr_error_t *pr_error_create(pool *p, int xerrno);
 void pr_error_destroy(pr_error_t *err);
 
+/* Get the identity of the process at the time this error was created. */
+int pr_error_get_identity(pr_error_t *err, uid_t *err_uid, gid_t *err_gid);
+
 int pr_error_set_goal(pr_error_t *err, const char *goal);
 int pr_error_set_location(pr_error_t *err, module *m, const char *file,
   unsigned int lineno);

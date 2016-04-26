@@ -49,8 +49,8 @@ struct err_rec {
 
   /* Process identity at time of error. */
   const char *err_user;
-  uid_t err_euid;
-  gid_t err_egid;
+  uid_t err_uid;
+  gid_t err_gid;
 
   /* Components for use in a more detailed error message. */
   const char *err_goal;
@@ -337,8 +337,8 @@ pr_error_t *pr_error_create(pool *p, int xerrno) {
   }
 
   /* NOTE: Should we get the real UID/GID here too? */
-  err->err_euid = geteuid();
-  err->err_egid = getegid();
+  err->err_uid = geteuid();
+  err->err_gid = getegid();
 
   return err;
 }
@@ -354,6 +354,29 @@ void pr_error_destroy(pr_error_t *err) {
 
   errno = xerrno;
   return;
+}
+
+int pr_error_get_identity(pr_error_t *err, uid_t *err_uid, gid_t *err_gid) {
+  if (err == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  if (err_uid == NULL &&
+      err_gid == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  if (err_uid != NULL) {
+    *err_uid = err->err_uid;
+  }
+
+  if (err_gid != NULL) {
+    *err_gid = err->err_gid;
+  }
+
+  return 0;
 }
 
 int pr_error_set_goal(pr_error_t *err, const char *goal) {
@@ -413,19 +436,19 @@ unsigned int pr_error_use_formats(unsigned int use_formats) {
 
 static const char *get_uid(pr_error_t *err, char *uid, size_t uidsz) {
   memset(uid, '\0', uidsz);
-  snprintf(uid, uidsz-1, "%lu", (unsigned long) err->err_euid);
+  snprintf(uid, uidsz-1, "%lu", (unsigned long) err->err_uid);
   return uid;
 }
 
 static const char *get_gid(pr_error_t *err, char *gid, size_t gidsz) {
   memset(gid, '\0', gidsz);
-  snprintf(gid, gidsz-1, "%lu", (unsigned long) err->err_egid);
+  snprintf(gid, gidsz-1, "%lu", (unsigned long) err->err_gid);
   return gid;
 }
 
 /* Returns string of:
  *
- *  "user ${user} (UID ${euid}, GID ${egid}) via ${protocol}"
+ *  "user ${user} (UID ${uid}, GID ${gid}) via ${protocol}"
  */
 static const char *get_who(pr_error_t *err) {
   const char *who = NULL;

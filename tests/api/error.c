@@ -106,6 +106,54 @@ START_TEST (error_destroy_test) {
 }
 END_TEST
 
+START_TEST (error_get_identity_test) {
+  int res, xerrno;
+  uid_t err_uid = -1, uid;
+  gid_t err_gid = -1, gid;
+  pr_error_t *err = NULL;
+
+  uid = geteuid();
+  gid = getegid();
+
+  res = pr_error_get_identity(NULL, NULL, NULL);
+  fail_unless(res < 0, "Failed to handle null error");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  xerrno = EACCES;
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  res = pr_error_get_identity(err, NULL, NULL);
+  fail_unless(res < 0, "Failed to handle null uid_t pointer");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  res = pr_error_get_identity(err, &err_uid, NULL);
+  fail_unless(res == 0, "Failed to get error identity: %s", strerror(errno));
+  fail_unless(err_uid == uid, "Expected %lu, got %lu", (unsigned long) uid,
+    (unsigned long) err_uid);
+
+  err_uid = -1;
+
+  res = pr_error_get_identity(err, NULL, &err_gid);
+  fail_unless(res == 0, "Failed to get error identity: %s", strerror(errno));
+  fail_unless(err_gid == gid, "Expected %lu, got %lu", (unsigned long) gid,
+    (unsigned long) err_gid);
+
+  err_gid = -1;
+
+  res = pr_error_get_identity(err, &err_uid, &err_gid);
+  fail_unless(res == 0, "Failed to get error identity: %s", strerror(errno));
+  fail_unless(err_uid == uid, "Expected %lu, got %lu", (unsigned long) uid,
+    (unsigned long) err_uid);
+  fail_unless(err_gid == gid, "Expected %lu, got %lu", (unsigned long) gid,
+    (unsigned long) err_gid);
+
+  pr_error_destroy(err);
+}
+END_TEST
+
 START_TEST (error_set_goal_test) {
   int res;
   pr_error_t *err;
@@ -456,7 +504,7 @@ START_TEST (error_strerror_detailed_test) {
   fail_unless(res2 == 0, "Failed to set error location: %s", strerror(errno));
 
   expected = pstrcat(p, "UID ", get_uid(p), ", GID ", get_gid(p),
-    " in core [api/error.c:455] failed with \"", strerror(xerrno),
+    " in core [api/error.c:503] failed with \"", strerror(xerrno),
     " (ENOENT [", get_errnum(p, xerrno), "])\"", NULL);
   res = pr_error_strerror(err, format);
   fail_unless(res != NULL, "Failed to format error: %s", strerror(errno));
@@ -469,7 +517,7 @@ START_TEST (error_strerror_detailed_test) {
   (void) pr_error_use_details(error_details);
 
   expected = pstrcat(p, "UID ", get_uid(p), ", GID ", get_gid(p),
-    " in api/error.c:455 failed with \"", strerror(xerrno),
+    " in api/error.c:503 failed with \"", strerror(xerrno),
     " (ENOENT [", get_errnum(p, xerrno), "])\"", NULL);
   res = pr_error_strerror(err, format);
   fail_unless(res != NULL, "Failed to format error: %s", strerror(errno));
@@ -529,7 +577,7 @@ START_TEST (error_strerror_detailed_test) {
   (void) pr_error_use_details(error_details);
 
   expected = pstrcat(p, "UID ", get_uid(p), ", GID ", get_gid(p),
-    " via ftp in core [api/error.c:514] attempting ", oper,
+    " via ftp in core [api/error.c:562] attempting ", oper,
     " failed with \"", strerror(xerrno), " (ENOENT [",
     get_errnum(p, xerrno), "])\"", NULL);
   res = pr_error_strerror(err, format);
@@ -543,7 +591,7 @@ START_TEST (error_strerror_detailed_test) {
   (void) pr_error_use_details(error_details);
 
   expected = pstrcat(p, "user ", session.user,
-    " via ftp in core [api/error.c:514] attempting ", oper,
+    " via ftp in core [api/error.c:562] attempting ", oper,
     " failed with \"", strerror(xerrno), " (ENOENT [",
     get_errnum(p, xerrno), "])\"", NULL);
   res = pr_error_strerror(err, format);
@@ -557,7 +605,7 @@ START_TEST (error_strerror_detailed_test) {
   (void) pr_error_use_details(error_details);
 
   expected = pstrcat(p, "user ", session.user, " (UID ", get_uid(p),
-    ", GID ", get_gid(p), ") in core [api/error.c:514] attempting ", oper,
+    ", GID ", get_gid(p), ") in core [api/error.c:562] attempting ", oper,
     " failed with \"", strerror(xerrno), " (ENOENT [",
     get_errnum(p, xerrno), "])\"", NULL);
   res = pr_error_strerror(err, format);
@@ -575,7 +623,7 @@ START_TEST (error_strerror_detailed_test) {
 
   expected = pstrcat(p, "user ", session.user, " (UID ", get_uid(p),
     ", GID ", get_gid(p), ") via ftp wanted to ", goal,
-    " in core [api/error.c:514] but ", oper,
+    " in core [api/error.c:562] but ", oper,
     " failed with \"", strerror(xerrno), " (ENOENT [",
     get_errnum(p, xerrno), "])\"", NULL);
   res = pr_error_strerror(err, 0);
@@ -630,7 +678,7 @@ START_TEST (error_strerror_detailed_explained_test) {
 
   expected = pstrcat(p, "user ", session.user, " (UID ", get_uid(p),
     ", GID ", get_gid(p), ") via ftp wanted to ", goal, " in mod_",
-    m.name, " [api/error.c:622] but open() using path = 'path', "
+    m.name, " [api/error.c:670] but open() using path = 'path', "
     "flags = O_RDONLY, mode = 0755 failed with \"", strerror(xerrno),
     " (ENOENT [", get_errnum(p, xerrno), "])\" because test mode is not real",
     NULL);
@@ -5142,6 +5190,7 @@ Suite *tests_get_error_suite(void) {
 
   tcase_add_test(testcase, error_create_test);
   tcase_add_test(testcase, error_destroy_test);
+  tcase_add_test(testcase, error_get_identity_test);
   tcase_add_test(testcase, error_set_goal_test);
   tcase_add_test(testcase, error_set_location_test);
   tcase_add_test(testcase, error_set_operation_test);
