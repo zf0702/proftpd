@@ -47,6 +47,11 @@ struct err_rec {
   /* Line number in file of the error, e.g. __LINE__. */
   unsigned int err_lineno;
 
+  /* Process identity at time of error. */
+  const char *err_user;
+  uid_t err_euid;
+  gid_t err_egid;
+
   /* Components for use in a more detailed error message. */
   const char *err_goal;
   const char *err_oper;
@@ -327,6 +332,14 @@ pr_error_t *pr_error_create(pool *p, int xerrno) {
   err->err_pool = err_pool;
   err->err_errno = xerrno;
 
+  if (session.user != NULL) {
+    err->err_user = pstrdup(err_pool, session.user);
+  }
+
+  /* NOTE: Should we get the real UID/GID here too? */
+  err->err_euid = geteuid();
+  err->err_egid = getegid();
+
   return err;
 }
 
@@ -398,67 +411,75 @@ unsigned int pr_error_use_formats(unsigned int use_formats) {
   return prev;
 }
 
-static const char *get_uid(char *uid, size_t uidsz) {
+static const char *get_uid(pr_error_t *err, char *uid, size_t uidsz) {
   memset(uid, '\0', uidsz);
-  snprintf(uid, uidsz-1, "%lu", (unsigned long) session.uid);
+  snprintf(uid, uidsz-1, "%lu", (unsigned long) err->err_euid);
   return uid;
 }
 
-static const char *get_gid(char *gid, size_t gidsz) {
+static const char *get_gid(pr_error_t *err, char *gid, size_t gidsz) {
   memset(gid, '\0', gidsz);
-  snprintf(gid, gidsz-1, "%lu", (unsigned long) session.gid);
+  snprintf(gid, gidsz-1, "%lu", (unsigned long) err->err_egid);
   return gid;
 }
 
 /* Returns string of:
  *
- *  "user ${user} (UID %{uid})/group ${group} (GID ${gid}) via ${protocol}"
+ *  "user ${user} (UID ${euid}, GID ${egid}) via ${protocol}"
  */
 static const char *get_who(pr_error_t *err) {
   const char *who = NULL;
 
-  if (session.user == NULL ||
-      session.group == NULL) {
-    /* Not logged in yet. */
-    return who;
-  }
-
   if (error_details & PR_ERROR_DETAILS_USE_NAMES) {
-    who = pstrcat(err->err_pool, "user ", session.user, NULL);
+    if (err->err_user != NULL) {
+      who = pstrcat(err->err_pool, "user ", err->err_user, NULL);
+    }
 
     if (error_details & PR_ERROR_DETAILS_USE_IDS) {
       char uid[32];
 
-      who = pstrcat(err->err_pool, who,
-        " (UID ", get_uid(uid, sizeof(uid)), ")", NULL);
-    }
+      if (err->err_user != NULL) {
+        who = pstrcat(err->err_pool, who,
+          " (UID ", get_uid(err, uid, sizeof(uid)), ",", NULL);
 
-    who = pstrcat(err->err_pool, who, "/group ", session.group, NULL);
+      } else {
+        who = pstrcat(err->err_pool, "UID ", get_uid(err, uid, sizeof(uid)),
+          ",", NULL);
+      }
+    }
 
     if (error_details & PR_ERROR_DETAILS_USE_IDS) {
       char gid[32];
 
-      who = pstrcat(err->err_pool, who,
-        " (GID ", get_gid(gid, sizeof(gid)), ")", NULL);
+      who = pstrcat(err->err_pool, who, " GID ",
+        get_gid(err, gid, sizeof(gid)), NULL);
+      if (err->err_user != NULL) {
+        who = pstrcat(err->err_pool, who, ")", NULL);
+      }
     }
 
   } else if (error_details & PR_ERROR_DETAILS_USE_IDS) {
     char uid[32], gid[32];
 
-    who = pstrcat(err->err_pool, "UID ", get_uid(uid, sizeof(uid)),
-      "/GID ", get_gid(gid, sizeof(gid)), NULL);
+    who = pstrcat(err->err_pool, "UID ", get_uid(err, uid, sizeof(uid)),
+      ", GID ", get_gid(err, gid, sizeof(gid)), NULL);
   }
 
   if (error_details & PR_ERROR_DETAILS_USE_PROTOCOL) {
-    const char *proto;
+    /* If we don't have a session.user, then we don't have a connection, and
+     * thus we do not a protocol.
+     */
+    if (session.user != NULL) {
+      const char *proto;
 
-    proto = pr_session_get_protocol(0);
+      proto = pr_session_get_protocol(0);
 
-    if (who != NULL) {
-      who = pstrcat(err->err_pool, who, " via ", proto, NULL);
+      if (who != NULL) {
+        who = pstrcat(err->err_pool, who, " via ", proto, NULL);
 
-    } else {
-      who = pstrcat(err->err_pool, "via ", proto, NULL);
+      } else {
+        who = pstrcat(err->err_pool, "via ", proto, NULL);
+      }
     }
   }
 
@@ -676,7 +697,11 @@ static const char *get_detailed_text(pool *p, const char *who, const char *why,
     const char *explained) {
   const char *err_text = NULL;
 
-  if (who != NULL) {
+  if (who != NULL &&
+      (what != NULL || where != NULL)) {
+    /* Not much point in including who, if there is no what or where to
+     * go with them.
+     */
     err_text = who;
   }
 
@@ -704,7 +729,7 @@ static const char *get_detailed_text(pool *p, const char *who, const char *why,
         err_text = pstrcat(p, err_text, " but ", what, NULL);
 
       } else {
-        err_text = pstrcat(p, err_text, " attempted ", what, NULL);
+        err_text = pstrcat(p, err_text, " attempting ", what, NULL);
       }
 
     } else {

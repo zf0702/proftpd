@@ -57,6 +57,20 @@ static const char *get_errnum(pool *err_pool, int xerrno) {
   return pstrdup(err_pool, errnum);
 }
 
+static const char *get_uid(pool *err_pool) {
+  char uid[32];
+  memset(uid, '\0', sizeof(uid));
+  snprintf(uid, sizeof(uid)-1, "%lu", (unsigned long) geteuid());
+  return pstrdup(err_pool, uid);
+}
+
+static const char *get_gid(pool *err_pool) {
+  char gid[32];
+  memset(gid, '\0', sizeof(gid));
+  snprintf(gid, sizeof(gid)-1, "%lu", (unsigned long) getegid());
+  return pstrdup(err_pool, gid);
+}
+
 START_TEST (error_create_test) {
   pr_error_t *err;
 
@@ -430,9 +444,9 @@ START_TEST (error_strerror_detailed_test) {
     res);
 
   /* no oper */
-  expected = pstrcat(p,
-    "in core failed with \"No such file or directory (ENOENT [",
-    get_errnum(p, xerrno), "])\"", NULL);
+  expected = pstrcat(p, "UID ", get_uid(p), ", GID ", get_gid(p),
+    " in core failed with \"", strerror(xerrno),
+    " (ENOENT [", get_errnum(p, xerrno), "])\"", NULL);
   res = pr_error_strerror(err, format);
   fail_unless(res != NULL, "Failed to format error: %s", strerror(errno));
   fail_unless(strcmp(res, expected) == 0, "Expected '%s', got '%s'", expected,
@@ -441,9 +455,9 @@ START_TEST (error_strerror_detailed_test) {
   res2 = pr_error_set_location(err, NULL, __FILE__, __LINE__);
   fail_unless(res2 == 0, "Failed to set error location: %s", strerror(errno));
 
-  expected = pstrcat(p,
-    "in core [api/error.c:441] failed with \"No such file or directory "
-    "(ENOENT [", get_errnum(p, xerrno), "])\"", NULL);
+  expected = pstrcat(p, "UID ", get_uid(p), ", GID ", get_gid(p),
+    " in core [api/error.c:455] failed with \"", strerror(xerrno),
+    " (ENOENT [", get_errnum(p, xerrno), "])\"", NULL);
   res = pr_error_strerror(err, format);
   fail_unless(res != NULL, "Failed to format error: %s", strerror(errno));
   fail_unless(strcmp(res, expected) == 0, "Expected '%s', got '%s'", expected,
@@ -454,9 +468,9 @@ START_TEST (error_strerror_detailed_test) {
   error_details &= ~PR_ERROR_DETAILS_USE_MODULE;
   (void) pr_error_use_details(error_details);
 
-  expected = pstrcat(p,
-    "in api/error.c:441 failed with \"No such file or directory "
-    "(ENOENT [", get_errnum(p, xerrno), "])\"", NULL);
+  expected = pstrcat(p, "UID ", get_uid(p), ", GID ", get_gid(p),
+    " in api/error.c:455 failed with \"", strerror(xerrno),
+    " (ENOENT [", get_errnum(p, xerrno), "])\"", NULL);
   res = pr_error_strerror(err, format);
   fail_unless(res != NULL, "Failed to format error: %s", strerror(errno));
   fail_unless(strcmp(res, expected) == 0, "Expected '%s', got '%s'", expected,
@@ -480,8 +494,8 @@ START_TEST (error_strerror_detailed_test) {
   fail_unless(res2 == 0, "Failed to set operation '%s': %s", oper,
     strerror(errno));
 
-  expected = pstrcat(p, oper,
-    " failed with \"No such file or directory (ENOENT [",
+  expected = pstrcat(p, "UID ", get_uid(p), ", GID ", get_gid(p),
+    " attempting ", oper, " failed with \"No such file or directory (ENOENT [",
     get_errnum(p, xerrno), "])\"", NULL);
   res = pr_error_strerror(err, format);
   fail_unless(res != NULL, "Failed to format error: %s", strerror(errno));
@@ -489,12 +503,19 @@ START_TEST (error_strerror_detailed_test) {
     res);
 
   session.user = "foo";
-  session.uid = 77;
-  session.group = "bar";
-  session.gid = 88;
 
-  expected = pstrcat(p, "user ", session.user, " (UID 77)/group ",
-    session.group, " (GID 88) via ftp attempted ", oper,
+  /* Since the error's user is set at time of creation, we need to make
+   * a new error for these tests.
+   */
+  pr_error_destroy(err);
+  err = pr_error_create(p, xerrno);
+  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
+
+  (void) pr_error_set_location(err, NULL, __FILE__, __LINE__);
+  (void) pr_error_set_operation(err, oper);
+
+  expected = pstrcat(p, "user ", session.user, " (UID ", get_uid(p),
+    ", GID ", get_gid(p), ") via ftp attempting ", oper,
     " failed with \"No such file or directory (ENOENT [",
     get_errnum(p, xerrno), "])\"", NULL);
   res = pr_error_strerror(err, format);
@@ -507,9 +528,9 @@ START_TEST (error_strerror_detailed_test) {
   error_details &= ~PR_ERROR_DETAILS_USE_NAMES;
   (void) pr_error_use_details(error_details);
 
-  expected = pstrcat(p, "UID 77/GID 88 via ftp in core [api/error.c:441] "
-    "attempted ", oper,
-    " failed with \"No such file or directory (ENOENT [",
+  expected = pstrcat(p, "UID ", get_uid(p), ", GID ", get_gid(p),
+    " via ftp in core [api/error.c:514] attempting ", oper,
+    " failed with \"", strerror(xerrno), " (ENOENT [",
     get_errnum(p, xerrno), "])\"", NULL);
   res = pr_error_strerror(err, format);
   fail_unless(res != NULL, "Failed to format error: %s", strerror(errno));
@@ -521,9 +542,9 @@ START_TEST (error_strerror_detailed_test) {
   error_details &= ~PR_ERROR_DETAILS_USE_IDS;
   (void) pr_error_use_details(error_details);
 
-  expected = pstrcat(p, "user ", session.user, "/group ", session.group,
-    " via ftp in core [api/error.c:441] attempted ", oper,
-    " failed with \"No such file or directory (ENOENT [",
+  expected = pstrcat(p, "user ", session.user,
+    " via ftp in core [api/error.c:514] attempting ", oper,
+    " failed with \"", strerror(xerrno), " (ENOENT [",
     get_errnum(p, xerrno), "])\"", NULL);
   res = pr_error_strerror(err, format);
   fail_unless(res != NULL, "Failed to format error: %s", strerror(errno));
@@ -535,9 +556,9 @@ START_TEST (error_strerror_detailed_test) {
   error_details &= ~PR_ERROR_DETAILS_USE_PROTOCOL;
   (void) pr_error_use_details(error_details);
 
-  expected = pstrcat(p, "user ", session.user, " (UID 77)/group ",
-    session.group, " (GID 88) in core [api/error.c:441] attempted ", oper,
-    " failed with \"No such file or directory (ENOENT [",
+  expected = pstrcat(p, "user ", session.user, " (UID ", get_uid(p),
+    ", GID ", get_gid(p), ") in core [api/error.c:514] attempting ", oper,
+    " failed with \"", strerror(xerrno), " (ENOENT [",
     get_errnum(p, xerrno), "])\"", NULL);
   res = pr_error_strerror(err, format);
   fail_unless(res != NULL, "Failed to format error: %s", strerror(errno));
@@ -552,10 +573,10 @@ START_TEST (error_strerror_detailed_test) {
   res2 = pr_error_set_goal(err, goal);
   fail_unless(res2 == 0, "Failed to set goal: %s", strerror(errno));
 
-  expected = pstrcat(p, "user ", session.user, " (UID 77)/group ",
-    session.group, " (GID 88) via ftp wanted to ", goal,
-    " in core [api/error.c:441] but ", oper,
-    " failed with \"No such file or directory (ENOENT [",
+  expected = pstrcat(p, "user ", session.user, " (UID ", get_uid(p),
+    ", GID ", get_gid(p), ") via ftp wanted to ", goal,
+    " in core [api/error.c:514] but ", oper,
+    " failed with \"", strerror(xerrno), " (ENOENT [",
     get_errnum(p, xerrno), "])\"", NULL);
   res = pr_error_strerror(err, 0);
   fail_unless(res != NULL, "Failed to format error: %s", strerror(errno));
@@ -581,6 +602,8 @@ START_TEST (error_strerror_detailed_explained_test) {
   const char *res, *expected, *oper, *goal;
   module m;
 
+  session.user = "foo";
+
   xerrno = ENOENT;
   err = pr_error_create(p, xerrno);
   fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
@@ -596,11 +619,6 @@ START_TEST (error_strerror_detailed_explained_test) {
   memset(&m, 0, sizeof(m));
   m.name = "error";
 
-  session.user = "foo";
-  session.uid = 7;
-  session.group = "bar";
-  session.gid = 8;
-
   res2 = pr_error_set_location(err, &m, __FILE__, __LINE__);
   fail_unless(res2 == 0, "Failed to set location: %s", strerror(errno));
 
@@ -610,11 +628,11 @@ START_TEST (error_strerror_detailed_explained_test) {
   res2 = pr_error_explain_open(err, "path", O_RDONLY, 0755);
   fail_unless(res2 == 0, "Failed to explain error: %s", strerror(errno));
 
-  expected = pstrcat(p, "user ", session.user, " (UID 7)/group ",
-    session.group, " (GID 8) via ftp wanted to ", goal, " in mod_",
-    m.name, " [api/error.c:604] but open() using path = 'path', "
-    "flags = O_RDONLY, mode = 0755 failed with \"No such file or directory ("
-    "ENOENT [", get_errnum(p, xerrno), "])\" because test mode is not real",
+  expected = pstrcat(p, "user ", session.user, " (UID ", get_uid(p),
+    ", GID ", get_gid(p), ") via ftp wanted to ", goal, " in mod_",
+    m.name, " [api/error.c:622] but open() using path = 'path', "
+    "flags = O_RDONLY, mode = 0755 failed with \"", strerror(xerrno),
+    " (ENOENT [", get_errnum(p, xerrno), "])\" because test mode is not real",
     NULL);
   res = pr_error_strerror(err, 0);
   fail_unless(res != NULL, "Failed to format error: %s", strerror(errno));
