@@ -69,6 +69,7 @@ static struct testsuite_info suites[] = {
   { "display",		tests_get_display_suite },
   { "misc",		tests_get_misc_suite },
   { "error",		tests_get_error_suite },
+  { "fsio-err",		tests_get_fsio_err_suite },
 
   { NULL, NULL }
 };

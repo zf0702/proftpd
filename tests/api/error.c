@@ -224,13 +224,11 @@ START_TEST (error_explanations_test) {
   fail_unless(errno == ENOENT, "Expected ENOENT (%d), got %s (%d)", ENOENT,
     strerror(errno), errno);
 
-  /* Wildcard unregistrations: ANY_MODULE, null name. */
-
   explanations = pr_error_register_explanations(p, &m, name);
   fail_unless(explanations != NULL, "Failed to register '%s' explanations: %s",
     name, strerror(errno));
 
-  res = pr_error_unregister_explanations(p, ANY_MODULE, name);
+  res = pr_error_unregister_explanations(p, NULL, name);
   fail_unless(res == 0, "Failed to handle unregister '%s' explanations: %s",
     name, strerror(errno));
 
@@ -444,7 +442,7 @@ START_TEST (error_strerror_detailed_test) {
   fail_unless(res2 == 0, "Failed to set error location: %s", strerror(errno));
 
   expected = pstrcat(p,
-    "in core [api/error.c:443] failed with \"No such file or directory "
+    "in core [api/error.c:441] failed with \"No such file or directory "
     "(ENOENT [", get_errnum(p, xerrno), "])\"", NULL);
   res = pr_error_strerror(err, format);
   fail_unless(res != NULL, "Failed to format error: %s", strerror(errno));
@@ -457,7 +455,7 @@ START_TEST (error_strerror_detailed_test) {
   (void) pr_error_use_details(error_details);
 
   expected = pstrcat(p,
-    "in api/error.c:443 failed with \"No such file or directory "
+    "in api/error.c:441 failed with \"No such file or directory "
     "(ENOENT [", get_errnum(p, xerrno), "])\"", NULL);
   res = pr_error_strerror(err, format);
   fail_unless(res != NULL, "Failed to format error: %s", strerror(errno));
@@ -509,7 +507,7 @@ START_TEST (error_strerror_detailed_test) {
   error_details &= ~PR_ERROR_DETAILS_USE_NAMES;
   (void) pr_error_use_details(error_details);
 
-  expected = pstrcat(p, "UID 77/GID 88 via ftp in core [api/error.c:443] "
+  expected = pstrcat(p, "UID 77/GID 88 via ftp in core [api/error.c:441] "
     "attempted ", oper,
     " failed with \"No such file or directory (ENOENT [",
     get_errnum(p, xerrno), "])\"", NULL);
@@ -524,7 +522,7 @@ START_TEST (error_strerror_detailed_test) {
   (void) pr_error_use_details(error_details);
 
   expected = pstrcat(p, "user ", session.user, "/group ", session.group,
-    " via ftp in core [api/error.c:443] attempted ", oper,
+    " via ftp in core [api/error.c:441] attempted ", oper,
     " failed with \"No such file or directory (ENOENT [",
     get_errnum(p, xerrno), "])\"", NULL);
   res = pr_error_strerror(err, format);
@@ -538,7 +536,7 @@ START_TEST (error_strerror_detailed_test) {
   (void) pr_error_use_details(error_details);
 
   expected = pstrcat(p, "user ", session.user, " (UID 77)/group ",
-    session.group, " (GID 88) in core [api/error.c:443] attempted ", oper,
+    session.group, " (GID 88) in core [api/error.c:441] attempted ", oper,
     " failed with \"No such file or directory (ENOENT [",
     get_errnum(p, xerrno), "])\"", NULL);
   res = pr_error_strerror(err, format);
@@ -556,7 +554,7 @@ START_TEST (error_strerror_detailed_test) {
 
   expected = pstrcat(p, "user ", session.user, " (UID 77)/group ",
     session.group, " (GID 88) via ftp wanted to ", goal,
-    " in core [api/error.c:443] but ", oper,
+    " in core [api/error.c:441] but ", oper,
     " failed with \"No such file or directory (ENOENT [",
     get_errnum(p, xerrno), "])\"", NULL);
   res = pr_error_strerror(err, 0);
@@ -614,7 +612,7 @@ START_TEST (error_strerror_detailed_explained_test) {
 
   expected = pstrcat(p, "user ", session.user, " (UID 7)/group ",
     session.group, " (GID 8) via ftp wanted to ", goal, " in mod_",
-    m.name, " [api/error.c:606] but open() using path = 'path', "
+    m.name, " [api/error.c:604] but open() using path = 'path', "
     "flags = O_RDONLY, mode = 0755 failed with \"No such file or directory ("
     "ENOENT [", get_errnum(p, xerrno), "])\" because test mode is not real",
     NULL);

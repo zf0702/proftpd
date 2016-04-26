@@ -78,6 +78,7 @@ Suite *tests_get_privs_suite(void);
 Suite *tests_get_display_suite(void);
 Suite *tests_get_misc_suite(void);
 Suite *tests_get_error_suite(void);
+Suite *tests_get_fsio_err_suite(void);
 
 /* Temporary hack/placement for this variable, until we get to testing
  * the Signals API.

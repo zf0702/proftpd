@@ -834,7 +834,7 @@ pr_error_explanations_t *pr_error_register_explanations(pool *p, module *m,
   /* Check for duplicate registrations. */
   if (error_explainers != NULL) {
     for (ee = error_explainers; ee; ee = ee->next) {
-      if ((m == ANY_MODULE || m == ee->m) &&
+      if ((m == NULL || m == ee->m) &&
           (strcmp(name, ee->name) == 0)) {
         errno = EEXIST;
         return NULL;
@@ -880,7 +880,7 @@ int pr_error_unregister_explanations(pool *p, module *m, const char *name) {
   }
 
   for (ee = error_explainers; ee; ee = ee->next) {
-    if ((m == ANY_MODULE || m == ee->m) &&
+    if ((m == NULL || m == ee->m) &&
         (name == NULL || strcmp(name, ee->name) == 0)) {
 
       if (ee->prev != NULL) {
@@ -933,14 +933,14 @@ int pr_error_use_explanations(pool *p, module *m, const char *name) {
   }
 
   if (error_explainer != NULL) {
-    if ((m == ANY_MODULE || m == error_explainer->m) &&
+    if ((m == NULL || m == error_explainer->m) &&
         (strcmp(name, error_explainer->name) == 0)) {
       return 0;
     }
   }
 
   for (ee = error_explainers; ee; ee = ee->next) {
-    if ((m == ANY_MODULE || m == ee->m) &&
+    if ((m == NULL || m == ee->m) &&
         (strcmp(name, ee->name) == 0)) {
       error_explainer = ee;
       return 0;
