@@ -41,6 +41,7 @@
 #endif
 
 #include "privs.h"
+#include "error.h"
 
 int (*cmd_auth_chk)(cmd_rec *);
 void (*cmd_handler)(server_rec *, conn_t *);
@@ -1782,11 +1783,20 @@ static void inetd_main(void) {
   PRIVS_ROOT
   res = pr_open_scoreboard(O_RDWR);
   if (res < 0) {
+    int xerrno = errno;
+    pr_error_t *err;
+
+    err = pr_error_create(permanent_pool, xerrno);
+    pr_error_set_location(err, NULL, __FILE__, __LINE__ - 6);
     PRIVS_RELINQUISH
+
+    pr_error_set_goal(err, "open ScoreboardFile");
+    pr_error_set_operation(err, "open()");
 
     switch (res) {
       case PR_SCORE_ERR_BAD_MAGIC:
         pr_log_pri(PR_LOG_ERR, "error opening scoreboard: bad/corrupted file");
+        pr_error_destroy(err);
         return;
 
       case PR_SCORE_ERR_OLDER_VERSION:
@@ -1795,21 +1805,28 @@ static void inetd_main(void) {
           "writing new scoreboard");
 
         /* Delete the scoreboard, then open it again. */
+        pr_error_destroy(err);
         PRIVS_ROOT
         pr_delete_scoreboard();
         if (pr_open_scoreboard(O_RDWR) < 0) {
-          int xerrno = errno;
+          xerrno = errno;
 
+          err = pr_error_create(permanent_pool, xerrno);
+          pr_error_set_location(err, NULL, __FILE__, __LINE__ - 4);
           PRIVS_RELINQUISH
-          pr_log_pri(PR_LOG_ERR, "error opening scoreboard: %s",
-            strerror(xerrno));
+
+          pr_error_set_goal(err, "open ScoreboardFile");
+          pr_error_set_operation(err, "open()");
+
+          pr_log_pri(PR_LOG_ERR, "%s", pr_error_strerror(err, 0));
+          pr_error_destroy(err);
           return;
         }
         break;
 
       default:
-        pr_log_pri(PR_LOG_ERR, "error opening scoreboard: %s",
-          strerror(errno));
+        pr_log_pri(PR_LOG_ERR, "%s", pr_error_strerror(err, 0));
+        pr_error_destroy(err);
         return;
     }
   }
@@ -1849,28 +1866,39 @@ static void standalone_main(void) {
   pr_delete_scoreboard();
   res = pr_open_scoreboard(O_RDWR);
   if (res < 0) {
+    int xerrno = errno;
+    pr_error_t *err;
+
+    err = pr_error_create(permanent_pool, xerrno);
+    pr_error_set_location(err, NULL, __FILE__, __LINE__ - 6);
     PRIVS_RELINQUISH
+
+    pr_error_set_goal(err, "open ScoreboardFile");
+    pr_error_set_operation(err, "open()");
 
     switch (res) {
       case PR_SCORE_ERR_BAD_MAGIC:
         pr_log_pri(PR_LOG_ERR,
           "error opening scoreboard: bad/corrupted file");
-        return;
+        break;
 
       case PR_SCORE_ERR_OLDER_VERSION:
         pr_log_pri(PR_LOG_ERR,
           "error opening scoreboard: bad version (too old)");
-        return;
+        break;
 
       case PR_SCORE_ERR_NEWER_VERSION:
         pr_log_pri(PR_LOG_ERR,
           "error opening scoreboard: bad version (too new)");
-        return;
+        break;
 
       default:
-        pr_log_pri(PR_LOG_ERR, "error opening scoreboard: %s", strerror(errno));
-        return;
+        pr_log_pri(PR_LOG_ERR, "%s", pr_error_strerror(err, 0));
+        break;
     }
+
+    pr_error_destroy(err);
+    return;
   }
   PRIVS_RELINQUISH
   pr_close_scoreboard(TRUE);

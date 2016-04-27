@@ -44,6 +44,7 @@
 #include "kbdint.h"
 #include "fxp.h"
 #include "utf8.h"
+#include "error.h"
 
 #if defined(HAVE_SODIUM_H)
 # include <sodium.h>
@@ -1990,12 +1991,13 @@ static int sftp_sess_init(void) {
   int times_gmt = TRUE;
 
   c = find_config(main_server->conf, CONF_PARAM, "SFTPEngine", FALSE);
-  if (c) {
+  if (c != NULL) {
     sftp_engine = *((int *) c->argv[0]);
   }
 
-  if (!sftp_engine)
+  if (sftp_engine == FALSE) {
     return 0;
+  }
 
   pr_event_register(&sftp_module, "core.exit", sftp_exit_ev, NULL);
 #ifdef PR_USE_DEVEL
@@ -2014,9 +2016,13 @@ static int sftp_sess_init(void) {
   pr_event_register(&sftp_module, "mod_auth.max-hosts-per-user",
     sftp_max_conns_ev, NULL);
 
+  sftp_pool = make_sub_pool(session.pool);
+  pr_pool_tag(sftp_pool, MOD_SFTP_VERSION);
+
   c = find_config(main_server->conf, CONF_PARAM, "SFTPLog", FALSE);
-  if (c) {
+  if (c != NULL) {
     int res, xerrno;
+    pr_error_t *err;
 
     sftp_logname = c->argv[0];
 
@@ -2024,14 +2030,19 @@ static int sftp_sess_init(void) {
     PRIVS_ROOT
     res = pr_log_openfile(sftp_logname, &sftp_logfd, PR_LOG_SYSTEM_MODE);
     xerrno = errno;
+    err = pr_error_create(sftp_pool, xerrno);
+    pr_error_set_location(err, &sftp_module, __FILE__, __LINE__ - 3);
     PRIVS_RELINQUISH
     pr_signals_unblock();
+
+    pr_error_set_goal(err, "open SFTPLog");
+    pr_error_set_operation(err, "open()");
 
     if (res < 0) {
       if (res == -1) {
         pr_log_pri(PR_LOG_NOTICE, MOD_SFTP_VERSION
           ": notice: unable to open SFTPLog '%s': %s", sftp_logname,
-          strerror(xerrno));
+          pr_error_strerror(err, 0));
 
       } else if (res == PR_LOG_WRITABLE_DIR) {
         pr_log_pri(PR_LOG_WARNING, MOD_SFTP_VERSION
@@ -2044,6 +2055,8 @@ static int sftp_sess_init(void) {
           sftp_logname);
       }
     }
+
+    pr_error_destroy(err);
   }
 
   if (pr_define_exists("SFTP_USE_FIPS")) {
@@ -2085,7 +2098,7 @@ static int sftp_sess_init(void) {
 #if OPENSSL_VERSION_NUMBER > 0x000907000L
   /* Handle any requested crypto accelerators/drivers. */
   c = find_config(main_server->conf, CONF_PARAM, "SFTPCryptoDevice", FALSE);
-  if (c) {
+  if (c != NULL) {
     if (sftp_crypto_set_driver(c->argv[0]) < 0) {
       (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
         "unable use SFTPCryptoDevice '%s': %s", (const char *) c->argv[0],
@@ -2094,9 +2107,6 @@ static int sftp_sess_init(void) {
   }
 #endif
 
-  sftp_pool = make_sub_pool(session.pool);
-  pr_pool_tag(sftp_pool, MOD_SFTP_VERSION);
-
   /* We do two passes through the configured hostkeys.  On the first pass,
    * we focus on loading all of the configured keys.  On the second pass,
    * we focus on handling any of the hostkey flags that would e.g. clear the
@@ -2104,9 +2114,11 @@ static int sftp_sess_init(void) {
    */
 
   c = find_config(main_server->conf, CONF_PARAM, "SFTPHostKey", FALSE);
-  while (c) {
+  while (c != NULL) {
     const char *path = c->argv[0];
     int flags = *((int *) c->argv[1]);
+
+    pr_signals_handle();
 
     if (path != NULL &&
         flags == 0) {
@@ -2124,8 +2136,10 @@ static int sftp_sess_init(void) {
   }
 
   c = find_config(main_server->conf, CONF_PARAM, "SFTPHostKey", FALSE);
-  while (c) {
+  while (c != NULL) {
     int flags = *((int *) c->argv[1]);
+
+    pr_signals_handle();
 
     if (flags != 0) {
       /* Handle any flags, such as for clearing previous host keys. */
@@ -2211,7 +2225,7 @@ static int sftp_sess_init(void) {
   }
 
   c = find_config(main_server->conf, CONF_PARAM, "SFTPMaxChannels", FALSE);
-  if (c) {
+  if (c != NULL) {
     sftp_channel_set_max_count(*((unsigned int *) c->argv[0]));
   }
 
@@ -2228,7 +2242,7 @@ static int sftp_sess_init(void) {
   }
 
   c = find_config(main_server->conf, CONF_PARAM, "DisplayLogin", FALSE);
-  if (c) {
+  if (c != NULL) {
     const char *path;
 
     path = c->argv[0];
@@ -2239,7 +2253,7 @@ static int sftp_sess_init(void) {
   }
 
   c = find_config(main_server->conf, CONF_PARAM, "ServerIdent", FALSE);
-  if (c) {
+  if (c != NULL) {
     if (*((unsigned char *) c->argv[0]) == FALSE) {
       /* The admin configured "ServerIdent off".  Set the version string to
        * just "mod_sftp", and that's it, no version.
@@ -2261,21 +2275,21 @@ static int sftp_sess_init(void) {
   }
 
   c = find_config(main_server->conf, CONF_PARAM, "TimesGMT", FALSE);
-  if (c) {
+  if (c != NULL) {
     times_gmt = *((unsigned char *) c->argv[0]);
-  }
-
-  pr_response_block(TRUE);
-
-  c = find_config(main_server->conf, CONF_PARAM, "SFTPExtensions", FALSE);
-  if (c) {
-    sftp_fxp_set_extensions(*((unsigned long *) c->argv[0]));
   }
 
   sftp_fxp_use_gmt(times_gmt);
 
+  pr_response_block(TRUE);
+
+  c = find_config(main_server->conf, CONF_PARAM, "SFTPExtensions", FALSE);
+  if (c != NULL) {
+    sftp_fxp_set_extensions(*((unsigned long *) c->argv[0]));
+  }
+
   c = find_config(main_server->conf, CONF_PARAM, "SFTPClientAlive", FALSE);
-  if (c) {
+  if (c != NULL) {
     unsigned int count, interval;
 
     count = *((unsigned int *) c->argv[0]);
@@ -2290,7 +2304,7 @@ static int sftp_sess_init(void) {
 
   /* Check for any rekey policy. */
   c = find_config(main_server->conf, CONF_PARAM, "SFTPRekey", FALSE);
-  if (c) {
+  if (c != NULL) {
     int rekey;
 
     /* The possible int values here are:
@@ -2347,7 +2361,7 @@ static int sftp_sess_init(void) {
    * exchanged, based on the configured policy.
    */
   c = find_config(main_server->conf, CONF_PARAM, "SFTPTrafficPolicy", FALSE);
-  if (c) {
+  if (c != NULL) {
     const char *policy = c->argv[0];
 
     if (sftp_tap_set_policy(policy) < 0) {
@@ -2371,7 +2385,7 @@ static int sftp_sess_init(void) {
    */
 
   c = find_config(main_server->conf, CONF_PARAM, "UseEncoding", FALSE);
-  if (c) {
+  if (c != NULL) {
     if (c->argc == 2) {
       char *charset;
 
