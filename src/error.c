@@ -715,17 +715,27 @@ static const char *get_terse_text(pool *p, const char *what,
   return err_text;
 }
 
-static const char *get_detailed_text(pool *p, const char *who, const char *why,
-    const char *where, const char *what, const char *failure,
+static const char *get_detailed_text(pool *p, const char *where,
+    const char *who, const char *why, const char *what, const char *failure,
     const char *explained) {
   const char *err_text = NULL;
+
+  if (where != NULL) {
+    err_text = pstrcat(p, "in ", where, NULL);
+  }
 
   if (who != NULL &&
       (what != NULL || where != NULL)) {
     /* Not much point in including who, if there is no what or where to
      * go with them.
      */
-    err_text = who;
+
+    if (err_text != NULL) {
+      err_text = pstrcat(p, err_text, ", ", who, NULL);
+
+    } else {
+      err_text = who;
+    }
   }
 
   if (why != NULL) {
@@ -734,15 +744,6 @@ static const char *get_detailed_text(pool *p, const char *who, const char *why,
 
     } else {
       err_text = why;
-    }
-  }
-
-  if (where != NULL) {
-    if (err_text != NULL) {
-      err_text = pstrcat(p, err_text, " in ", where, NULL);
-
-    } else {
-      err_text = pstrcat(p, "in ", where, NULL);
     }
   }
 
@@ -831,7 +832,7 @@ const char *pr_error_strerror(pr_error_t *err, int use_format) {
       failure = get_failure(err);
       explained = get_explained(err);
 
-      err_text = get_detailed_text(err->err_pool, who, why, where, what,
+      err_text = get_detailed_text(err->err_pool, where, who, why, what,
         failure, explained);
       break;
     }

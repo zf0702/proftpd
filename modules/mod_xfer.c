@@ -2274,7 +2274,7 @@ MODRET xfer_pre_retr(cmd_rec *cmd) {
     pr_error_set_location(err, &xfer_module, __FILE__, __LINE__ - 24);
     pr_error_set_goal(err, pstrcat(cmd->tmp_pool, "download file \"",
       pr_str_quote(cmd->pool, decoded_path), "\"", NULL));
-    pr_error_set_operation(err, "stat()");
+    pr_error_set_operation(err, "stat(2)");
 
     path = dir_realpath(cmd->tmp_pool, decoded_path);
   }
@@ -2323,7 +2323,7 @@ MODRET xfer_pre_retr(cmd_rec *cmd) {
     pr_error_set_location(err, &xfer_module, __FILE__, __LINE__ - 6);
     pr_error_set_goal(err, pstrcat(cmd->tmp_pool, "download file \"",
       pr_str_quote(cmd->pool, path), "\"", NULL));
-    pr_error_set_operation(err, "stat()");
+    pr_error_set_operation(err, "stat(2)");
 
     pr_response_add_err(R_550, "%s: %s", cmd->arg, strerror(xerrno));
     pr_cmd_set_errno(cmd, xerrno);

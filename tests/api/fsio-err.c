@@ -35,6 +35,8 @@ static void set_up(void) {
   }
 
   init_fs();
+  pr_fs_statcache_set_policy(PR_TUNABLE_FS_STATCACHE_SIZE,
+    PR_TUNABLE_FS_STATCACHE_MAX_AGE, 0);
 
   if (getenv("TEST_VERBOSE") != NULL) {
     pr_trace_set_levels("error", 1, 20);
@@ -47,6 +49,9 @@ static void tear_down(void) {
     pr_trace_set_levels("error", 0, 0);
     pr_trace_set_levels("fsio", 0, 0);
   }
+
+  pr_fs_statcache_set_policy(PR_TUNABLE_FS_STATCACHE_SIZE,
+    PR_TUNABLE_FS_STATCACHE_MAX_AGE, 0);
 
   if (p) {
     destroy_pool(p);
@@ -318,6 +323,48 @@ START_TEST (fsio_rename_with_error_test) {
 }
 END_TEST
 
+START_TEST (fsio_stat_with_error_test) {
+  int res, xerrno;
+  const char *expected, *errstr, *path;
+  pr_error_t *err = NULL;
+  struct stat st;
+
+  path = "/no/such/path";
+
+  res = pr_fsio_stat_with_error(NULL, path, &st, NULL);
+  fail_unless(res < 0, "Unexpectedly succeeded with stat of '%s'", path);
+  fail_unless(errno == ENOENT, "Expected ENOENT (%d), got %s (%d)", ENOENT,
+    strerror(errno), errno);
+
+  res = pr_fsio_stat_with_error(p, path, &st, NULL);
+  fail_unless(res < 0, "Unexpectedly succeeded with stat of '%s'", path);
+  fail_unless(errno == ENOENT, "Expected ENOENT (%d), got %s (%d)", ENOENT,
+    strerror(errno), errno);
+
+  res = pr_fsio_stat_with_error(NULL, path, &st, &err);
+  fail_unless(res < 0, "Unexpectedly succeeded with stat of '%s'", path);
+  fail_unless(errno == ENOENT, "Expected ENOENT (%d), got %s (%d)", ENOENT,
+    strerror(errno), errno);
+  fail_unless(err == NULL, "Unexpectedly got error back");
+
+  res = pr_fsio_stat_with_error(p, path, &st, &err);
+  fail_unless(res < 0, "Unexpectedly succeeded with stat of '%s'", path);
+  fail_unless(errno == ENOENT, "Expected ENOENT (%d), got %s (%d)", ENOENT,
+    strerror(errno), errno);
+  fail_unless(err != NULL, "Failed to get error back");
+
+  mark_point();
+  xerrno = errno;
+  errstr = pr_error_strerror(err, PR_ERROR_FORMAT_USE_MINIMAL);
+  expected = pstrcat(p, "stat() failed with \"", strerror(xerrno),
+    " (ENOENT [", get_errnum(p, xerrno), "])\"", NULL);
+  fail_unless(strcmp(expected, errstr) == 0, "Expected '%s', got '%s'",
+    expected, errstr);
+
+  pr_error_destroy(err);
+}
+END_TEST
+
 START_TEST (fsio_mkdir_with_error_test) {
   int res, xerrno;
   mode_t mode;
@@ -416,6 +463,7 @@ Suite *tests_get_fsio_err_suite(void) {
   tcase_add_test(testcase, fsio_write_with_error_test);
   tcase_add_test(testcase, fsio_unlink_with_error_test);
   tcase_add_test(testcase, fsio_rename_with_error_test);
+  tcase_add_test(testcase, fsio_stat_with_error_test);
   tcase_add_test(testcase, fsio_mkdir_with_error_test);
   tcase_add_test(testcase, fsio_rmdir_with_error_test);
 
