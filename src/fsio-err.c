@@ -85,6 +85,26 @@ int pr_fsio_rename_with_error(pool *p, const char *rnfr, const char *rnto,
   return res;
 }
 
+int pr_fsio_stat_with_error(pool *p, const char *path, struct stat *st,
+    pr_error_t **err) {
+  int res;
+
+  res = pr_fsio_stat(path, st);
+  if (res < 0) {
+    int xerrno = errno;
+
+    if (p != NULL &&
+        err != NULL) {
+      *err = pr_error_create(p, xerrno);
+      (void) pr_error_explain_stat(*err, path, st);
+    }
+
+    errno = xerrno;
+  }
+
+  return res;
+}
+
 int pr_fsio_unlink_with_error(pool *p, const char *path, pr_error_t **err) {
   int res;
 

@@ -126,6 +126,7 @@
 	(SFTP_SERVICE_FL_SFTP|SFTP_SERVICE_FL_SCP)
 
 /* Miscellaneous */
+extern module sftp_module;
 extern int sftp_logfd;
 extern const char *sftp_logname;
 extern pool *sftp_pool;

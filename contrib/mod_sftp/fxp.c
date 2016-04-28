@@ -35,6 +35,8 @@
 #include "utf8.h"
 #include "misc.h"
 
+#include "fsio-err.h"
+
 /* FXP_NAME file attribute flags */
 #define SSH2_FX_ATTR_SIZE		0x00000001
 #define SSH2_FX_ATTR_UIDGID		0x00000002
@@ -8653,6 +8655,7 @@ static int fxp_handle_open(struct fxp_packet *fxp) {
   struct fxp_packet *resp;
   cmd_rec *cmd, *cmd2 = NULL;
   array_header *xattrs = NULL;
+  pr_error_t *err = NULL;
 
   path = sftp_msg_read_string(fxp->pool, &fxp->payload, &fxp->payload_sz);
   if (fxp_session->client_version >= fxp_utf8_protocol_version) {
@@ -9071,21 +9074,41 @@ static int fxp_handle_open(struct fxp_packet *fxp) {
    * open.  Then, after a successful open, we return the file to blocking
    * mode.
    */
-  fh = pr_fsio_open(hiddenstore_path ? hiddenstore_path : path,
-    open_flags|O_NONBLOCK);
+  fh = pr_fsio_open_with_error(fxp->pool,
+    hiddenstore_path ? hiddenstore_path : path, open_flags|O_NONBLOCK, &err);
   if (fh == NULL) {
     uint32_t status_code;
     const char *reason;
     int xerrno = errno;
+
+    pr_error_set_location(err, &sftp_module, __FILE__, __LINE__ - 7);
+    if ((open_flags & O_WRONLY) ||
+        (open_flags & O_RDWR)) {
+      pr_error_set_goal(err, pstrcat(fxp->pool, "upload file \"",
+        pr_str_quote(fxp->pool, path), "\"", NULL));
+
+    } else {
+      pr_error_set_goal(err, pstrcat(fxp->pool, "download file \"",
+        pr_str_quote(fxp->pool, path), "\"", NULL));
+    }
 
     (void) pr_trace_msg("fileperms", 1, "OPEN, user '%s' (UID %s, GID %s): "
       "error opening '%s': %s", session.user,
       pr_uid2str(fxp->pool, session.uid), pr_gid2str(fxp->pool, session.gid),
       hiddenstore_path ? hiddenstore_path : path, strerror(xerrno));
 
-    (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
-      "error opening '%s': %s", hiddenstore_path ? hiddenstore_path : path,
-      strerror(xerrno));
+    if (err != NULL) {
+      (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION, "%s",
+        pr_error_strerror(err, 0));
+
+    } else {
+      (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
+        "error opening '%s': %s", hiddenstore_path ? hiddenstore_path : path,
+        strerror(xerrno));
+    }
+
+    pr_error_destroy(err);
+    err = NULL;
 
     status_code = fxp_errno2status(xerrno, &reason);
 
@@ -11090,6 +11113,7 @@ static int fxp_handle_remove(struct fxp_packet *fxp) {
   struct fxp_packet *resp;
   cmd_rec *cmd, *cmd2;
   int res;
+  pr_error_t *err = NULL;
 
   path = sftp_msg_read_string(fxp->pool, &fxp->payload, &fxp->payload_sz);
   if (fxp_session->client_version >= fxp_utf8_protocol_version) {
@@ -11335,19 +11359,31 @@ static int fxp_handle_remove(struct fxp_packet *fxp) {
     return fxp_packet_write(resp);
   }
 
-  res = pr_fsio_unlink(real_path);
+  res = pr_fsio_unlink_with_error(fxp->pool, real_path, &err);
   if (res < 0) {
     int xerrno = errno;
+
+    pr_error_set_location(err, &sftp_module, __FILE__, __LINE__ - 4);
+    pr_error_set_goal(err, pstrcat(fxp->pool, "delete file \"",
+      pr_str_quote(fxp->pool, real_path), "\"", NULL));
 
     (void) pr_trace_msg("fileperms", 1, "REMOVE, user '%s' (UID %s, GID %s): "
       "error deleting '%s': %s", session.user,
       pr_uid2str(fxp->pool, session.uid), pr_gid2str(fxp->pool, session.gid),
       real_path, strerror(xerrno));
-
-    (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
-      "error unlinking '%s': %s", real_path, strerror(xerrno));
-
     pr_response_add_err(R_550, "%s: %s", path, strerror(xerrno));
+
+    if (err != NULL) {
+      (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION, "%s",
+        pr_error_strerror(err, 0));
+      pr_error_destroy(err);
+      err = NULL;
+
+    } else {
+      (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
+        "error unlinking '%s': %s", real_path, strerror(xerrno));
+    }
+
     pr_cmd_dispatch_phase(cmd2, POST_CMD_ERR, 0);
     pr_cmd_dispatch_phase(cmd2, LOG_CMD_ERR, 0);
     pr_response_clear(&resp_err_list);
@@ -11407,7 +11443,8 @@ static int fxp_handle_rename(struct fxp_packet *fxp) {
   uint32_t buflen, bufsz, flags, status_code;
   struct fxp_packet *resp;
   cmd_rec *cmd = NULL, *cmd2 = NULL, *cmd3 = NULL;
-  int xerrno = 0;
+  int res, xerrno = 0;
+  pr_error_t *err = NULL;
 
   old_path = sftp_msg_read_string(fxp->pool, &fxp->payload, &fxp->payload_sz);
   new_path = sftp_msg_read_string(fxp->pool, &fxp->payload, &fxp->payload_sz);
@@ -11750,18 +11787,32 @@ static int fxp_handle_rename(struct fxp_packet *fxp) {
     return fxp_packet_write(resp);
   }
 
-  if (pr_fsio_rename(old_path, new_path) < 0) {
-    if (errno != EXDEV) {
-      xerrno = errno;
+  res = pr_fsio_rename_with_error(fxp->pool, old_path, new_path, &err);
+  if (res < 0) {
+    xerrno = errno;
 
+    pr_error_set_location(err, &sftp_module, __FILE__, __LINE__ - 4);
+    pr_error_set_goal(err, pstrcat(fxp->pool, "rename \"",
+      pr_str_quote(fxp->pool, old_path), "\" to \"",
+      pr_str_quote(fxp->pool, new_path), "\"", NULL));
+
+    if (xerrno != EXDEV) {
       (void) pr_trace_msg("fileperms", 1, "RENAME, user '%s' (UID %s, "
         "GID %s): error renaming '%s' to '%s': %s", session.user,
         pr_uid2str(fxp->pool, session.uid), pr_gid2str(fxp->pool, session.gid),
         old_path, new_path, strerror(xerrno));
 
-      (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
-        "error renaming '%s' to '%s': %s", old_path, new_path,
-        strerror(xerrno));
+      if (err != NULL) {
+        (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION, "%s",
+          pr_error_strerror(err, 0));
+        pr_error_destroy(err);
+        err = NULL;
+
+      } else {
+        (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
+          "error renaming '%s' to '%s': %s", old_path, new_path,
+          strerror(xerrno));
+      }
 
       errno = xerrno;
 
@@ -11769,7 +11820,10 @@ static int fxp_handle_rename(struct fxp_packet *fxp) {
       /* In this case, we should manually copy the file from the source
        * path to the destination path.
        */
+      pr_error_destroy(err);
+      err = NULL;
       errno = 0;
+
       if (pr_fs_copy_file(old_path, new_path) < 0) {
         xerrno = errno;
 
@@ -11878,6 +11932,7 @@ static int fxp_handle_rmdir(struct fxp_packet *fxp) {
   cmd_rec *cmd, *cmd2;
   int have_error = FALSE, res = 0;
   struct stat st;
+  pr_error_t *err = NULL;
 
   path = sftp_msg_read_string(fxp->pool, &fxp->payload, &fxp->payload_sz);
   if (fxp_session->client_version >= fxp_utf8_protocol_version) {
@@ -12077,17 +12132,29 @@ static int fxp_handle_rmdir(struct fxp_packet *fxp) {
     return fxp_packet_write(resp);
   }
 
-  res = pr_fsio_rmdir(path);
+  res = pr_fsio_rmdir_with_error(fxp->pool, path, &err);
   if (res < 0) {
     int xerrno = errno;
+
+    pr_error_set_location(err, &sftp_module, __FILE__, __LINE__ - 4);
+    pr_error_set_goal(err, pstrcat(fxp->pool, "remove directory \"",
+      pr_str_quote(fxp->pool, path), "\"", NULL));
 
     (void) pr_trace_msg("fileperms", 1, "RMDIR, user '%s' (UID %s, GID %s): "
       "error removing directory '%s': %s", session.user,
       pr_uid2str(fxp->pool, session.uid), pr_gid2str(fxp->pool, session.gid),
       path, strerror(xerrno));
 
-    (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
-      "error removing directory '%s': %s", path, strerror(xerrno));
+    if (err != NULL) {
+      (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION, "%s",
+        pr_error_strerror(err, 0));
+      pr_error_destroy(err);
+      err = NULL;
+
+    } else {
+      (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
+        "error removing directory '%s': %s", path, strerror(xerrno));
+    }
 
 #if defined(ENOTEMPTY) && ENOTEMPTY != EEXIST
     status_code = fxp_errno2status(xerrno, &reason);

@@ -2035,7 +2035,7 @@ static int sftp_sess_init(void) {
     PRIVS_RELINQUISH
     pr_signals_unblock();
 
-    pr_error_set_goal(err, "open SFTPLog");
+    pr_error_set_goal(err, "SFTPLog opening");
     pr_error_set_operation(err, "open()");
 
     if (res < 0) {

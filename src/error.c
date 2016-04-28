@@ -752,7 +752,7 @@ static const char *get_detailed_text(pool *p, const char *who, const char *why,
         err_text = pstrcat(p, err_text, " but ", what, NULL);
 
       } else {
-        err_text = pstrcat(p, err_text, " attempting ", what, NULL);
+        err_text = pstrcat(p, err_text, " attempting to ", what, NULL);
       }
 
     } else {

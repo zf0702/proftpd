@@ -41,6 +41,9 @@ int pr_fsio_read_with_error(pool *p, pr_fh_t *fh, char *buf, size_t sz,
 int pr_fsio_write_with_error(pool *p, pr_fh_t *fh, const char *buf, size_t sz,
   pr_error_t **err);
 
+int pr_fsio_stat_with_error(pool *p, const char *path, struct stat *st,
+  pr_error_t **err);
+
 int pr_fsio_unlink_with_error(pool *p, const char *path, pr_error_t **err);
 
 int pr_fsio_rename_with_error(pool *p, const char *from, const char *to,

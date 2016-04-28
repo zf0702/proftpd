@@ -199,7 +199,7 @@ static int auth_sess_init(void) {
     pr_error_set_location(err, &auth_module, __FILE__, __LINE__ - 3);
     PRIVS_RELINQUISH
 
-    pr_error_set_goal(err, "open ScoreboardFile");
+    pr_error_set_goal(err, "ScoreboardFile opening");
     pr_error_set_operation(err, "open()");
 
     if (res < 0) {

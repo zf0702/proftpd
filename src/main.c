@@ -1790,7 +1790,7 @@ static void inetd_main(void) {
     pr_error_set_location(err, NULL, __FILE__, __LINE__ - 6);
     PRIVS_RELINQUISH
 
-    pr_error_set_goal(err, "open ScoreboardFile");
+    pr_error_set_goal(err, "ScoreboardFile opening");
     pr_error_set_operation(err, "open()");
 
     switch (res) {
@@ -1815,7 +1815,7 @@ static void inetd_main(void) {
           pr_error_set_location(err, NULL, __FILE__, __LINE__ - 4);
           PRIVS_RELINQUISH
 
-          pr_error_set_goal(err, "open ScoreboardFile");
+          pr_error_set_goal(err, "ScoreboardFile opening");
           pr_error_set_operation(err, "open()");
 
           pr_log_pri(PR_LOG_ERR, "%s", pr_error_strerror(err, 0));
@@ -1873,7 +1873,7 @@ static void standalone_main(void) {
     pr_error_set_location(err, NULL, __FILE__, __LINE__ - 6);
     PRIVS_RELINQUISH
 
-    pr_error_set_goal(err, "open ScoreboardFile");
+    pr_error_set_goal(err, "ScoreboardFile opening");
     pr_error_set_operation(err, "open()");
 
     switch (res) {

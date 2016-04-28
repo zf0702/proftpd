@@ -28,8 +28,7 @@
 
 #include "conf.h"
 #include "privs.h"
-
-#include <ctype.h>
+#include "fsio-err.h"
 
 extern module *loaded_modules;
 extern module site_module;
@@ -40,7 +39,7 @@ extern unsigned long max_connects;
 extern unsigned int max_connect_interval;
 
 /* From modules/mod_site.c */
-extern modret_t *site_dispatch(cmd_rec*);
+extern modret_t *site_dispatch(cmd_rec *);
 
 /* For bytes-retrieving directives */
 #define PR_BYTES_BAD_UNITS	-1
@@ -5173,6 +5172,7 @@ MODRET core_rmd(cmd_rec *cmd) {
   int res;
   char *decoded_path, *dir;
   struct stat st;
+  pr_error_t *err = NULL;
 
   CHECK_CMD_MIN_ARGS(cmd, 2);
 
@@ -5262,8 +5262,13 @@ MODRET core_rmd(cmd_rec *cmd) {
     return PR_ERROR(cmd);
   }
 
-  if (pr_fsio_rmdir(dir) < 0) {
+  res = pr_fsio_rmdir_with_error(cmd->pool, dir, &err);
+  if (res < 0) {
     int xerrno = errno;
+
+    pr_error_set_location(err, &core_module, __FILE__, __LINE__ - 4);
+    pr_error_set_goal(err, pstrcat(cmd->pool, "remove directory \"",
+      pr_str_quote(cmd->pool, dir), "\"", NULL));
 
     (void) pr_trace_msg("fileperms", 1, "%s, user '%s' (UID %s, GID %s): "
       "error removing directory '%s': %s", (char *) cmd->argv[0], session.user,
@@ -5583,6 +5588,7 @@ MODRET core_dele(cmd_rec *cmd) {
   int res;
   char *decoded_path, *path, *fullpath;
   struct stat st;
+  pr_error_t *err = NULL;
 
   CHECK_CMD_MIN_ARGS(cmd, 2);
 
@@ -5688,18 +5694,31 @@ MODRET core_dele(cmd_rec *cmd) {
   }
 #endif /* !EISDIR */
  
-  if (pr_fsio_unlink(path) < 0) {
+  res = pr_fsio_unlink_with_error(cmd->pool, path, &err);
+  if (res < 0) {
     int xerrno = errno;
+
+    pr_error_set_location(err, &core_module, __FILE__, __LINE__ - 4);
+    pr_error_set_goal(err, pstrcat(cmd->pool, "delete file \"",
+      pr_str_quote(cmd->pool, path), "\"", NULL));
 
     (void) pr_trace_msg("fileperms", 1, "%s, user '%s' (UID %s, GID %s): "
       "error deleting '%s': %s", (char *) cmd->argv[0], session.user,
       pr_uid2str(cmd->tmp_pool, session.uid),
       pr_gid2str(cmd->tmp_pool, session.gid), path, strerror(xerrno));
 
-    pr_log_debug(DEBUG3, "error deleting '%s': %s", path, strerror(xerrno));
     pr_response_add_err(R_550, "%s: %s", cmd->arg, strerror(xerrno));
-
     pr_cmd_set_errno(cmd, xerrno);
+
+    if (err != NULL) {
+      pr_log_debug(DEBUG3, "%s", pr_error_strerror(err, 0));
+      pr_error_destroy(err);
+      err = NULL;
+
+    } else {
+      pr_log_debug(DEBUG3, "error deleting '%s': %s", path, strerror(xerrno));
+    }
+
     errno = xerrno;
     return PR_ERROR(cmd);
   }
