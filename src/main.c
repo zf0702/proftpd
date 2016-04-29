@@ -2566,8 +2566,10 @@ int main(int argc, char *argv[], char **envp) {
     }
 
     if (set_groups(permanent_pool, daemon_gid, daemon_gids) < 0) {
-      pr_log_pri(PR_LOG_WARNING, "unable to set daemon groups: %s",
-        strerror(errno));
+      if (errno != ENOSYS) {
+        pr_log_pri(PR_LOG_WARNING, "unable to set daemon groups: %s",
+          strerror(errno));
+      }
     }
   }
 
