@@ -6350,6 +6350,7 @@ static int fxp_handle_close(struct fxp_packet *fxp) {
   cmd_rec *cmd;
   struct timeval xfer_start_time;
   off_t xfer_file_size = 0, xfer_total_bytes = 0;
+  pr_error_t *err = NULL;
 
   xfer_start_time.tv_sec = xfer_start_time.tv_usec = 0;
 
@@ -6458,8 +6459,12 @@ static int fxp_handle_close(struct fxp_packet *fxp) {
       session.curr_cmd = C_RETR;
     }
 
-    res = pr_fsio_close(fxh->fh);
+    res = pr_fsio_close_with_error(fxp->pool, fxh->fh, &err);
     xerrno = errno;
+
+    pr_error_set_location(err, &sftp_module, __FILE__, __LINE__ - 3);
+    pr_error_set_goal(err, pstrcat(fxp->pool, "close file '", real_path, "'",
+      NULL));
 
     session.curr_cmd = "CLOSE";
 
@@ -6475,18 +6480,36 @@ static int fxp_handle_close(struct fxp_packet *fxp) {
       pr_trace_msg(trace_channel, 8, "renaming HiddenStores path '%s' to '%s'",
         curr_path, real_path);
 
-      res = pr_fsio_rename(curr_path, real_path);
+      pr_error_destroy(err);
+      err = NULL;
+
+      res = pr_fsio_rename_with_error(fxp->pool, curr_path, real_path, &err);
       if (res < 0) {
         xerrno = errno;
 
-        pr_log_pri(PR_LOG_WARNING, "Rename of %s to %s failed: %s",
-          curr_path, real_path, strerror(xerrno));
+        pr_error_set_location(err, &sftp_module, __FILE__, __LINE__ - 4);
+        pr_error_set_goal(err, pstrcat(fxp->pool, "rename HiddenStores file '",
+          curr_path, "' to '", real_path, "'", NULL));
 
-        (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
-          "renaming of HiddenStore path '%s' to '%s' failed: %s",
-          curr_path, real_path, strerror(xerrno));
+        if (err != NULL) {
+          pr_log_pri(PR_LOG_WARNING, "%s", pr_error_strerror(err, 0));
 
-        pr_fsio_unlink(curr_path);
+          (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION, "%s",
+            pr_error_strerror(err, 0));
+
+          pr_error_destroy(err);
+          err = NULL;
+
+        } else {
+          pr_log_pri(PR_LOG_WARNING, "Rename of %s to %s failed: %s",
+            curr_path, real_path, strerror(xerrno));
+          (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
+            "renaming of HiddenStore path '%s' to '%s' failed: %s",
+            curr_path, real_path, strerror(xerrno));
+        }
+
+
+        (void) pr_fsio_unlink(curr_path);
       }
     }
 
@@ -9084,12 +9107,12 @@ static int fxp_handle_open(struct fxp_packet *fxp) {
     pr_error_set_location(err, &sftp_module, __FILE__, __LINE__ - 7);
     if ((open_flags & O_WRONLY) ||
         (open_flags & O_RDWR)) {
-      pr_error_set_goal(err, pstrcat(fxp->pool, "upload file \"",
-        pr_str_quote(fxp->pool, path), "\"", NULL));
+      pr_error_set_goal(err, pstrcat(fxp->pool, "upload file '", path, "'",
+        NULL));
 
     } else {
-      pr_error_set_goal(err, pstrcat(fxp->pool, "download file \"",
-        pr_str_quote(fxp->pool, path), "\"", NULL));
+      pr_error_set_goal(err, pstrcat(fxp->pool, "download file '", path, "'",
+        NULL));
     }
 
     (void) pr_trace_msg("fileperms", 1, "OPEN, user '%s' (UID %s, GID %s): "
@@ -9789,12 +9812,13 @@ static int fxp_handle_opendir(struct fxp_packet *fxp) {
 static int fxp_handle_read(struct fxp_packet *fxp) {
   unsigned char *buf, *data = NULL, *ptr;
   char *file, *name, *ptr2;
-  int res;
+  int res, xerrno = 0;
   uint32_t buflen, bufsz, datalen;
   uint64_t offset;
   struct fxp_handle *fxh;
   struct fxp_packet *resp;
   cmd_rec *cmd, *cmd2;
+  pr_error_t *err = NULL;
 
   name = sftp_msg_read_string(fxp->pool, &fxp->payload, &fxp->payload_sz);
   offset = sftp_msg_read_long(fxp->pool, &fxp->payload, &fxp->payload_sz);
@@ -9885,7 +9909,8 @@ static int fxp_handle_read(struct fxp_packet *fxp) {
   if (offset > fxh->fh_st->st_size) {
     uint32_t status_code;
     const char *reason;
-    int xerrno = EOF;
+
+    xerrno = EOF;
 
     (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
       "requested read offset (%" PR_LU " bytes) greater than size of "
@@ -9982,7 +10007,8 @@ static int fxp_handle_read(struct fxp_packet *fxp) {
     if (pr_fsio_lseek(fxh->fh, offset, SEEK_SET) < 0) {
       uint32_t status_code;
       const char *reason;
-      int xerrno = errno;
+
+      xerrno = errno;
 
       (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
         "error seeking to offset (%" PR_LU " bytes) for '%s': %s",
@@ -10028,7 +10054,12 @@ static int fxp_handle_read(struct fxp_packet *fxp) {
     data = palloc(fxp->pool, datalen);
   }
 
-  res = pr_fsio_read(fxh->fh, (char *) data, datalen);
+  res = pr_fsio_read_with_error(fxp->pool, fxh->fh, (char *) data, datalen,
+    &err);
+  xerrno = errno;
+  pr_error_set_location(err, &sftp_module, __FILE__, __LINE__ - 3);
+  pr_error_set_goal(err, pstrcat(fxp->pool, "read data from file '",
+    fxh->fh->fh_path, "'", NULL));
 
   if (pr_data_get_timeout(PR_DATA_TIMEOUT_NO_TRANSFER) > 0) {
     pr_timer_reset(PR_TIMER_NOXFER, ANY_MODULE);
@@ -10041,18 +10072,23 @@ static int fxp_handle_read(struct fxp_packet *fxp) {
   if (res <= 0) {
     uint32_t status_code;
     const char *reason;
-    int xerrno;
 
     if (res < 0) {
-      xerrno = errno;
-
       (void) pr_trace_msg("fileperms", 1, "READ, user '%s' (UID %s, GID %s): "
         "error reading from '%s': %s", session.user,
         pr_uid2str(fxp->pool, session.uid), pr_gid2str(fxp->pool, session.gid),
         fxh->fh->fh_path, strerror(xerrno));
 
-      (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
-        "error reading from '%s': %s", fxh->fh->fh_path, strerror(xerrno));
+      if (err != NULL) {
+        (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION, "%s",
+          pr_error_strerror(err, 0));
+        pr_error_destroy(err);
+        err = NULL;
+
+      } else {
+        (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
+          "error reading from '%s': %s", fxh->fh->fh_path, strerror(xerrno));
+      }
 
       errno = xerrno;
 
@@ -11364,8 +11400,8 @@ static int fxp_handle_remove(struct fxp_packet *fxp) {
     int xerrno = errno;
 
     pr_error_set_location(err, &sftp_module, __FILE__, __LINE__ - 4);
-    pr_error_set_goal(err, pstrcat(fxp->pool, "delete file \"",
-      pr_str_quote(fxp->pool, real_path), "\"", NULL));
+    pr_error_set_goal(err, pstrcat(fxp->pool, "delete file '", real_path, "'",
+      NULL));
 
     (void) pr_trace_msg("fileperms", 1, "REMOVE, user '%s' (UID %s, GID %s): "
       "error deleting '%s': %s", session.user,
@@ -11792,9 +11828,8 @@ static int fxp_handle_rename(struct fxp_packet *fxp) {
     xerrno = errno;
 
     pr_error_set_location(err, &sftp_module, __FILE__, __LINE__ - 4);
-    pr_error_set_goal(err, pstrcat(fxp->pool, "rename \"",
-      pr_str_quote(fxp->pool, old_path), "\" to \"",
-      pr_str_quote(fxp->pool, new_path), "\"", NULL));
+    pr_error_set_goal(err, pstrcat(fxp->pool, "rename '", old_path, "' to '",
+      new_path, "'", NULL));
 
     if (xerrno != EXDEV) {
       (void) pr_trace_msg("fileperms", 1, "RENAME, user '%s' (UID %s, "
@@ -12137,8 +12172,8 @@ static int fxp_handle_rmdir(struct fxp_packet *fxp) {
     int xerrno = errno;
 
     pr_error_set_location(err, &sftp_module, __FILE__, __LINE__ - 4);
-    pr_error_set_goal(err, pstrcat(fxp->pool, "remove directory \"",
-      pr_str_quote(fxp->pool, path), "\"", NULL));
+    pr_error_set_goal(err, pstrcat(fxp->pool, "remove directory '", path, "'",
+      NULL));
 
     (void) pr_trace_msg("fileperms", 1, "RMDIR, user '%s' (UID %s, GID %s): "
       "error removing directory '%s': %s", session.user,
@@ -12948,6 +12983,7 @@ static int fxp_handle_write(struct fxp_packet *fxp) {
   struct fxp_handle *fxh;
   struct fxp_packet *resp;
   cmd_rec *cmd, *cmd2;
+  pr_error_t *err = NULL;
 
   name = sftp_msg_read_string(fxp->pool, &fxp->payload, &fxp->payload_sz);
   offset = sftp_msg_read_long(fxp->pool, &fxp->payload, &fxp->payload_sz);
@@ -13169,8 +13205,12 @@ static int fxp_handle_write(struct fxp_packet *fxp) {
 
   pr_throttle_init(cmd2);
   
-  res = pr_fsio_write(fxh->fh, (char *) data, datalen);
+  res = pr_fsio_write_with_error(fxp->pool, fxh->fh, (char *) data, datalen,
+    &err);
   xerrno = errno;
+  pr_error_set_location(err, &sftp_module, __FILE__, __LINE__ - 3);
+  pr_error_set_goal(err, pstrcat(fxp->pool, "write data to file '",
+    fxh->fh->fh_path, "'", NULL));
 
   /* Increment the "on-disk" file size with the number of bytes written.
    * We do this, rather than using fstat(2), to avoid performance penalties
@@ -13212,8 +13252,16 @@ static int fxp_handle_write(struct fxp_packet *fxp) {
       pr_uid2str(fxp->pool, session.uid), pr_gid2str(fxp->pool, session.gid),
       fxh->fh->fh_path, strerror(xerrno));
 
-    (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
-      "error writing to '%s': %s", fxh->fh->fh_path, strerror(xerrno));
+    if (err != NULL) {
+      (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION, "%s",
+        pr_error_strerror(err, 0));
+      pr_error_destroy(err);
+      err = NULL;
+
+    } else {
+      (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
+        "error writing to '%s': %s", fxh->fh->fh_path, strerror(xerrno));
+    }
 
     status_code = fxp_errno2status(xerrno, &reason);
 

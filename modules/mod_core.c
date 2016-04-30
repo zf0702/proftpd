@@ -5745,6 +5745,7 @@ MODRET core_rnto(cmd_rec *cmd) {
   char *decoded_path, *path;
   unsigned char *allow_overwrite = NULL;
   struct stat st;
+  pr_error_t *err = NULL;
 
   CHECK_CMD_MIN_ARGS(cmd, 2);
 
@@ -5821,9 +5822,21 @@ MODRET core_rnto(cmd_rec *cmd) {
   }
 
   if (!path ||
-      !dir_check_canon(cmd->tmp_pool, cmd, cmd->group, path, NULL) ||
-      pr_fsio_rename(session.xfer.path, path) == -1) {
+      !dir_check_canon(cmd->tmp_pool, cmd, cmd->group, path, NULL)) {
+    pr_response_add_err(R_550, _("%s: %s"), cmd->arg, strerror(EPERM));
+
+    pr_cmd_set_errno(cmd, EPERM);
+    errno = EPERM;
+    return PR_ERROR(cmd);
+  }
+
+  res = pr_fsio_rename_with_error(cmd->pool, session.xfer.path, path, &err);
+  if (res < 0) {
     int xerrno = errno;
+
+    pr_error_set_location(err, &core_module, __FILE__, __LINE__ - 4);
+    pr_error_set_goal(err, pstrcat(cmd->pool, "rename '", session.xfer.path,
+      "' to '", path, "'", NULL));
 
     if (xerrno == EISDIR) {
       /* In this case, the client has requested that a directory be renamed
@@ -5846,13 +5859,17 @@ MODRET core_rnto(cmd_rec *cmd) {
         "Cannot rename directory '%s' across a filesystem mount point",
         session.xfer.path);
 
+      if (err != NULL) {
+        pr_error_destroy(err);
+        err = NULL;
+      }
+
       /* Use EPERM, rather than EISDIR, to get slightly more informative
        * error messages.
        */
       xerrno = EPERM;
 
-      pr_response_add_err(R_550, _("Rename %s: %s"), cmd->arg,
-        strerror(xerrno));
+      pr_response_add_err(R_550, _("%s: %s"), cmd->arg, strerror(xerrno));
 
       pr_cmd_set_errno(cmd, xerrno);
       errno = xerrno;
@@ -5866,8 +5883,13 @@ MODRET core_rnto(cmd_rec *cmd) {
         pr_gid2str(cmd->tmp_pool, session.gid), session.xfer.path, path,
         strerror(xerrno));
 
-      pr_response_add_err(R_550, _("Rename %s: %s"), cmd->arg,
-        strerror(xerrno));
+      pr_response_add_err(R_550, _("%s: %s"), cmd->arg, strerror(xerrno));
+
+      if (err != NULL) {
+        pr_log_debug(DEBUG4, "%s", pr_error_strerror(err, 0));
+        pr_error_destroy(err);
+        err = NULL;
+      }
 
       pr_cmd_set_errno(cmd, xerrno);
       errno = xerrno;
@@ -5886,8 +5908,7 @@ MODRET core_rnto(cmd_rec *cmd) {
         pr_gid2str(cmd->tmp_pool, session.gid), session.xfer.path, path,
         strerror(xerrno));
 
-      pr_response_add_err(R_550, _("Rename %s: %s"), cmd->arg,
-        strerror(xerrno));
+      pr_response_add_err(R_550, _("%s: %s"), cmd->arg, strerror(xerrno));
 
       pr_cmd_set_errno(cmd, xerrno);
       errno = xerrno;
@@ -5909,8 +5930,9 @@ MODRET core_rnto(cmd_rec *cmd) {
 }
 
 MODRET core_rnto_cleanup(cmd_rec *cmd) {
-  if (session.xfer.p)
+  if (session.xfer.p != NULL) {
     destroy_pool(session.xfer.p);
+  }
 
   memset(&session.xfer, '\0', sizeof(session.xfer));
 
