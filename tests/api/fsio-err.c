@@ -671,31 +671,37 @@ START_TEST (fsio_chroot_with_error_test) {
 
   res = pr_fsio_chroot_with_error(NULL, path, NULL);
   fail_unless(res < 0, "Unexpectedly succeeded with path '%s'", path);
-  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+  fail_unless(errno == EPERM || errno == ENOENT,
+    "Expected EPERM (%d) or ENOENT (%d), got %s (%d)", EPERM, ENOENT,
     strerror(errno), errno);
 
   res = pr_fsio_chroot_with_error(p, path, NULL);
   fail_unless(res < 0, "Unexpectedly succeeded with path '%s'", path);
-  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+  fail_unless(errno == EPERM || errno == ENOENT,
+    "Expected EPERM (%d) or ENOENT (%d), got %s (%d)", EPERM, ENOENT,
     strerror(errno), errno);
 
   res = pr_fsio_chroot_with_error(NULL, path, &err);
   fail_unless(res < 0, "Unexpectedly succeeded with path '%s'", path);
-  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+  fail_unless(errno == EPERM || errno == ENOENT,
+    "Expected EPERM (%d) or ENOENT (%d), got %s (%d)", EPERM, ENOENT,
     strerror(errno), errno);
   fail_unless(err == NULL, "Unexpectedly got error back");
 
   res = pr_fsio_chroot_with_error(p, path, &err);
   fail_unless(res < 0, "Unexpectedly succeeded with path '%s'", path);
-  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+  fail_unless(errno == EPERM || errno == ENOENT,
+    "Expected EPERM (%d) or ENOENT (%d), got %s (%d)", EPERM, ENOENT,
     strerror(errno), errno);
   fail_unless(err != NULL, "Failed to get error back");
 
   mark_point();
   xerrno = errno;
   errstr = pr_error_strerror(err, PR_ERROR_FORMAT_USE_MINIMAL);
+
   expected = pstrcat(p, "chroot() failed with \"", strerror(xerrno),
-    " (EPERM [", get_errnum(p, xerrno), "])\"", NULL);
+    " (", xerrno == EPERM ? "EPERM" : "ENOENT", " [", get_errnum(p, xerrno),
+    "])\"", NULL);
   fail_unless(strcmp(expected, errstr) == 0, "Expected '%s', got '%s'",
     expected, errstr);
 
