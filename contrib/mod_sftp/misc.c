@@ -24,10 +24,12 @@
 
 #include "mod_sftp.h"
 #include "misc.h"
+#include "fsio-err.h"
 
 int sftp_misc_chown_file(pool *p, pr_fh_t *fh) {
   struct stat st;
   int res, xerrno;
+  pr_error_t *err = NULL;
  
   if (fh == NULL) {
     errno = EINVAL;
@@ -39,13 +41,25 @@ int sftp_misc_chown_file(pool *p, pr_fh_t *fh) {
    */
   if (session.fsuid != (uid_t) -1) {
     PRIVS_ROOT
-    res = pr_fsio_fchown(fh, session.fsuid, session.fsgid);
+    res = pr_fsio_fchown_with_error(p, fh, session.fsuid, session.fsgid, &err);
     xerrno = errno;
     PRIVS_RELINQUISH
 
+    pr_error_set_location(err, &sftp_module, __FILE__, __LINE__ - 4);
+    pr_error_set_goal(err,
+      pstrcat(p, "set UserOwner of '", fh->fh_path, "'", NULL));
+
     if (res < 0) {
-      (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
-        "chown(%s) as root failed: %s", fh->fh_path, strerror(xerrno));
+      if (err != NULL) {
+        (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION, "%s",
+          pr_error_strerror(err, 0));
+        pr_error_destroy(err);
+        err = NULL;
+
+      } else {
+        (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
+          "chown(%s) as root failed: %s", fh->fh_path, strerror(xerrno));
+      }
 
     } else {
       if (session.fsgid != (gid_t) -1) {
@@ -75,14 +89,26 @@ int sftp_misc_chown_file(pool *p, pr_fh_t *fh) {
        * doesn't have the necessary privileges to do so).
        */
       PRIVS_ROOT
-      res = pr_fsio_fchmod(fh, st.st_mode);
+      res = pr_fsio_fchmod_with_error(p, fh, st.st_mode, &err);
       xerrno = errno;
       PRIVS_RELINQUISH
 
+      pr_error_set_location(err, &sftp_module, __FILE__, __LINE__ - 4);
+      pr_error_set_goal(err,
+        pstrcat(p, "restore SUID/SGID on '", fh->fh_path, "'", NULL));
+
       if (res < 0) {
-        (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
-          "root chmod(%s) to %04o failed: %s", fh->fh_path,
-          (unsigned int) st.st_mode, strerror(xerrno));
+        if (err != NULL) {
+          (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION, "%s",
+            pr_error_strerror(err, 0));
+          pr_error_destroy(err);
+          err = NULL;
+
+        } else {
+          (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
+            "root chmod(%s) to %04o failed: %s", fh->fh_path,
+            (unsigned int) st.st_mode, strerror(xerrno));
+        }
 
       } else {
         (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
@@ -109,17 +135,29 @@ int sftp_misc_chown_file(pool *p, pr_fh_t *fh) {
       PRIVS_ROOT
     }
 
-    res = pr_fsio_fchown(fh, (uid_t) -1, session.fsgid);
+    res = pr_fsio_fchown_with_error(p, fh, (uid_t) -1, session.fsgid, &err);
     xerrno = errno;
 
     if (use_root_privs) {
       PRIVS_RELINQUISH
     }
 
+    pr_error_set_location(err, &sftp_module, __FILE__, __LINE__ - 7);
+    pr_error_set_goal(err,
+      pstrcat(p, "set GroupOwner of '", fh->fh_path, "'", NULL));
+
     if (res < 0) {
-      (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
-        "%schown(%s) failed: %s", use_root_privs ? "root " : "", fh->fh_path,
-        strerror(xerrno));
+      if (err != NULL) {
+        (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION, "%s",
+          pr_error_strerror(err, 0));
+        pr_error_destroy(err);
+        err = NULL;
+
+      } else {
+        (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
+          "%schown(%s) failed: %s", use_root_privs ? "root " : "", fh->fh_path,
+         strerror(xerrno));
+      }
 
     } else {
       (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
@@ -137,17 +175,29 @@ int sftp_misc_chown_file(pool *p, pr_fh_t *fh) {
         PRIVS_ROOT
       }
 
-      res = pr_fsio_fchmod(fh, st.st_mode);
+      res = pr_fsio_fchmod_with_error(p, fh, st.st_mode, &err);
       xerrno = errno;
 
       if (use_root_privs) {
         PRIVS_RELINQUISH
       }
 
+      pr_error_set_location(err, &sftp_module, __FILE__, __LINE__ - 7);
+      pr_error_set_goal(err,
+        pstrcat(p, "restore SUID/SGID on '", fh->fh_path, "'", NULL));
+
       if (res < 0) {
-        (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
-          "%schmod(%s) to %04o failed: %s", use_root_privs ? "root " : "",
-          fh->fh_path, (unsigned int) st.st_mode, strerror(xerrno));
+        if (err != NULL) {
+          (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION, "%s",
+            pr_error_strerror(err, 0));
+          pr_error_destroy(err);
+          err = NULL;
+
+        } else {
+          (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
+            "%schmod(%s) to %04o failed: %s", use_root_privs ? "root " : "",
+            fh->fh_path, (unsigned int) st.st_mode, strerror(xerrno));
+        }
       }
     }
   }
@@ -158,6 +208,7 @@ int sftp_misc_chown_file(pool *p, pr_fh_t *fh) {
 int sftp_misc_chown_path(pool *p, const char *path) {
   struct stat st;
   int res, xerrno;
+  pr_error_t *err = NULL;
 
   if (path == NULL) {
     errno = EINVAL;
@@ -168,15 +219,27 @@ int sftp_misc_chown_path(pool *p, const char *path) {
    * requested via GroupOwner.
    */
   if (session.fsuid != (uid_t) -1) {
-
     PRIVS_ROOT
-    res = pr_fsio_lchown(path, session.fsuid, session.fsgid);
+    res = pr_fsio_lchown_with_error(p, path, session.fsuid, session.fsgid,
+      &err);
     xerrno = errno;
     PRIVS_RELINQUISH
 
+    pr_error_set_location(err, &sftp_module, __FILE__, __LINE__ - 5);
+    pr_error_set_goal(err, pstrcat(p, "set UserOwner of '", path, "'",
+      NULL));
+
     if (res < 0) {
-      (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
-        "lchown(%s) as root failed: %s", path, strerror(xerrno));
+      if (err != NULL) {
+        (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION, "%s",
+          pr_error_strerror(err, 0));
+        pr_error_destroy(err);
+        err = NULL;
+
+      } else {
+        (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
+          "lchown(%s) as root failed: %s", path, strerror(xerrno));
+      }
 
     } else {
       if (session.fsgid != (gid_t) -1) {
@@ -206,14 +269,26 @@ int sftp_misc_chown_path(pool *p, const char *path) {
        * doesn't have the necessary privileges to do so).
        */
       PRIVS_ROOT
-      res = pr_fsio_chmod(path, st.st_mode);
+      res = pr_fsio_chmod_with_error(p, path, st.st_mode, &err);
       xerrno = errno;
       PRIVS_RELINQUISH
 
+      pr_error_set_location(err, &sftp_module, __FILE__, __LINE__ - 4);
+      pr_error_set_goal(err, pstrcat(p, "restore SUID/SGID on '", path, "'",
+        NULL));
+
       if (res < 0) {
-        (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
-          "root chmod(%s) to %04o failed: %s", path,
-          (unsigned int) st.st_mode, strerror(xerrno));
+        if (err != NULL) {
+          (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION, "%s",
+            pr_error_strerror(err, 0));
+          pr_error_destroy(err);
+          err = NULL;
+
+        } else {
+          (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
+            "root chmod(%s) to %04o failed: %s", path,
+            (unsigned int) st.st_mode, strerror(xerrno));
+        }
 
       } else {
         (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
@@ -240,17 +315,29 @@ int sftp_misc_chown_path(pool *p, const char *path) {
       PRIVS_ROOT
     }
 
-    res = pr_fsio_lchown(path, (uid_t) -1, session.fsgid);
+    res = pr_fsio_lchown_with_error(p, path, (uid_t) -1, session.fsgid, &err);
     xerrno = errno;
 
     if (use_root_privs) {
       PRIVS_RELINQUISH
     }
 
+    pr_error_set_location(err, &sftp_module, __FILE__, __LINE__ - 7);
+    pr_error_set_goal(err, pstrcat(p, "set GroupOwner of '", path, "'",
+      NULL));
+
     if (res < 0) {
-      (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
-        "%slchown(%s) failed: %s", use_root_privs ? "root " : "", path,
-        strerror(xerrno));
+      if (err != NULL) {
+        (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION, "%s",
+          pr_error_strerror(err, 0));
+        pr_error_destroy(err);
+        err = NULL;
+
+      } else {
+        (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
+          "%slchown(%s) failed: %s", use_root_privs ? "root " : "", path,
+          strerror(xerrno));
+      }
 
     } else {
       (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
@@ -269,17 +356,29 @@ int sftp_misc_chown_path(pool *p, const char *path) {
         PRIVS_ROOT
       }
 
-      res = pr_fsio_chmod(path, st.st_mode);
+      res = pr_fsio_chmod_with_error(p, path, st.st_mode, &err);
       xerrno = errno;
 
       if (use_root_privs) {
         PRIVS_RELINQUISH
       }
 
+      pr_error_set_location(err, &sftp_module, __FILE__, __LINE__ - 7);
+      pr_error_set_goal(err, pstrcat(p, "restore SUID/SGID on '", path, "'",
+        NULL));
+
       if (res < 0) {
-        (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
-          "%schmod(%s) to %04o failed: %s", use_root_privs ? "root " : "",
-          path, (unsigned int) st.st_mode, strerror(xerrno));
+        if (err != NULL) {
+          (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION, "%s",
+            pr_error_strerror(err, 0));
+          pr_error_destroy(err);
+          err = NULL;
+
+        } else {
+          (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
+            "%schmod(%s) to %04o failed: %s", use_root_privs ? "root " : "",
+            path, (unsigned int) st.st_mode, strerror(xerrno));
+        }
       }
     }
   }

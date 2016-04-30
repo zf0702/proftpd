@@ -28,6 +28,7 @@
 
 #include "conf.h"
 #include "privs.h"
+#include "fsio-err.h"
 
 static pool *auth_pool = NULL;
 static pr_table_t *auth_tab = NULL, *uid_tab = NULL, *user_tab = NULL,
@@ -1741,6 +1742,7 @@ int pr_auth_chroot(const char *path) {
   int res, xerrno = 0;
   time_t now;
   char *tz = NULL;
+  pr_error_t *err = NULL;
 
   if (path == NULL) {
     errno = EINVAL;
@@ -1781,13 +1783,24 @@ int pr_auth_chroot(const char *path) {
   pr_event_generate("core.chroot", path);
 
   PRIVS_ROOT
-  res = pr_fsio_chroot(path);
+  res = pr_fsio_chroot_with_error(session.pool, path, &err);
   xerrno = errno;
   PRIVS_RELINQUISH
 
+  pr_error_set_location(err, NULL, __FILE__, __LINE__ - 4);
+  pr_error_set_goal(err, pstrcat(session.pool,
+    "chroot session to directory '", path, "'", NULL));
+
   if (res < 0) {
-    pr_log_pri(PR_LOG_ERR, "chroot to '%s' failed for user '%s': %s", path,
-      session.user ? session.user : "(unknown)", strerror(xerrno));
+    if (err != NULL) {
+      pr_log_pri(PR_LOG_ERR, "%s", pr_error_strerror(err, 0));
+      pr_error_destroy(err);
+      err = NULL;
+
+    } else {
+      pr_log_pri(PR_LOG_ERR, "chroot to '%s' failed for user '%s': %s", path,
+        session.user ? session.user : "(unknown)", strerror(xerrno));
+    }
 
     errno = xerrno;
     return -1;

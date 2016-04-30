@@ -4925,40 +4925,6 @@ MODRET core_syst(cmd_rec *cmd) {
   return PR_HANDLED(cmd);
 }
 
-int core_chgrp(cmd_rec *cmd, const char *path, uid_t uid, gid_t gid) {
-  char *cmd_name;
-
-  cmd_name = cmd->argv[0];
-  pr_cmd_set_name(cmd, "SITE_CHGRP");
-  if (!dir_check(cmd->tmp_pool, cmd, G_WRITE, path, NULL)) {
-    pr_log_debug(DEBUG7, "SITE CHGRP command denied by <Limit> config");
-    pr_cmd_set_name(cmd, cmd_name);
-
-    errno = EACCES;
-    return -1;
-  }
-  pr_cmd_set_name(cmd, cmd_name);
-
-  return pr_fsio_lchown(path, uid, gid);
-}
-
-int core_chmod(cmd_rec *cmd, const char *path, mode_t mode) {
-  char *cmd_name;
-
-  cmd_name = cmd->argv[0];
-  pr_cmd_set_name(cmd, "SITE_CHMOD");
-  if (!dir_check(cmd->tmp_pool, cmd, G_WRITE, path, NULL)) {
-    pr_log_debug(DEBUG7, "SITE CHMOD command denied by <Limit> config");
-    pr_cmd_set_name(cmd, cmd_name);
-
-    errno = EACCES;
-    return -1;
-  }
-  pr_cmd_set_name(cmd, cmd_name);
-
-  return pr_fsio_chmod(path, mode);
-}
-
 MODRET core_chdir(cmd_rec *cmd, char *ndir) {
   char *dir, *orig_dir, *cdir;
   int xerrno = 0;

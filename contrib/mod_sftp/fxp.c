@@ -1345,7 +1345,9 @@ static int fxp_attrs_set(pr_fh_t *fh, const char *path, struct stat *attrs,
   if (attr_flags & SSH2_FX_ATTR_PERMISSIONS) {
     if (attrs->st_mode &&
         st.st_mode != attrs->st_mode) {
+      int xerrno = 0;
       cmd_rec *cmd;
+      pr_error_t *err = NULL;
 
       cmd = pr_cmd_alloc(fxp->pool, 1, "SITE_CHMOD");
       cmd->arg = pstrdup(fxp->pool, path);
@@ -1358,21 +1360,36 @@ static int fxp_attrs_set(pr_fh_t *fh, const char *path, struct stat *attrs,
 
       } else {
         if (fh != NULL) {
-          res = pr_fsio_fchmod(fh, attrs->st_mode);
+          res = pr_fsio_fchmod_with_error(fxp->pool, fh, attrs->st_mode, &err);
+          xerrno = errno;
+          pr_error_set_location(err, &sftp_module, __FILE__, __LINE__ - 2);
+          pr_error_set_goal(err, pstrcat(fxp->pool, "change perms of '",
+            fh->fh_path, "'", NULL));
 
         } else {
-          res = pr_fsio_chmod(path, attrs->st_mode);
+          res = pr_fsio_chmod_with_error(fxp->pool, path, attrs->st_mode, &err);
+          xerrno = errno;
+          pr_error_set_location(err, &sftp_module, __FILE__, __LINE__ - 2);
+          pr_error_set_goal(err, pstrcat(fxp->pool, "change perms of '",
+            path, "'", NULL));
         }
       }
 
       if (res < 0) {
         uint32_t status_code;
         const char *reason;
-        int xerrno = errno;
 
-        (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
-          "error changing permissions of '%s' to 0%o: %s", path,
-          (unsigned int) attrs->st_mode, strerror(xerrno));
+        if (err != NULL) {
+          (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION, "%s",
+            pr_error_strerror(err, 0));
+          pr_error_destroy(err);
+          err = NULL;
+
+        } else {
+          (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
+            "error changing permissions of '%s' to 0%o: %s", path,
+            (unsigned int) attrs->st_mode, strerror(xerrno));
+        }
 
         status_code = fxp_errno2status(xerrno, &reason);
 
@@ -1410,7 +1427,9 @@ static int fxp_attrs_set(pr_fh_t *fh, const char *path, struct stat *attrs,
     }
 
     if (do_chown) {
+      int xerrno = 0;
       cmd_rec *cmd;
+      pr_error_t *err = NULL;
 
       cmd = pr_cmd_alloc(fxp->pool, 1, "SITE_CHGRP");
       cmd->arg = pstrdup(fxp->pool, path);
@@ -1423,22 +1442,39 @@ static int fxp_attrs_set(pr_fh_t *fh, const char *path, struct stat *attrs,
 
       } else {
         if (fh != NULL) {
-          res = pr_fsio_fchown(fh, client_uid, client_gid);
+          res = pr_fsio_fchown_with_error(fxp->pool, fh, client_uid,
+            client_gid, &err);
+          xerrno = errno;
+          pr_error_set_location(err, &sftp_module, __FILE__, __LINE__ - 3);
+          pr_error_set_goal(err, pstrcat(fxp->pool, "change ownership of '",
+            fh->fh_path, "'", NULL));
 
         } else {
-          res = pr_fsio_chown(path, client_uid, client_gid);
+          res = pr_fsio_chown_with_error(fxp->pool, path, client_uid,
+            client_gid, &err);
+          xerrno = errno;
+          pr_error_set_location(err, &sftp_module, __FILE__, __LINE__ - 3);
+          pr_error_set_goal(err, pstrcat(fxp->pool, "change ownership of '",
+            path, "'", NULL));
         }
       }
 
       if (res < 0) {
         uint32_t status_code;
         const char *reason;
-        int xerrno = errno;
 
-        (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
-          "error changing ownership of '%s' to UID %s, GID %s: %s",
-          path, pr_uid2str(fxp->pool, client_uid),
-          pr_gid2str(fxp->pool, client_gid), strerror(xerrno));
+        if (err != NULL) {
+          (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION, "%s",
+            pr_error_strerror(err, 0));
+          pr_error_destroy(err);
+          err = NULL;
+
+        } else {
+          (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
+            "error changing ownership of '%s' to UID %s, GID %s: %s",
+            path, pr_uid2str(fxp->pool, client_uid),
+            pr_gid2str(fxp->pool, client_gid), strerror(xerrno));
+        }
 
         status_code = fxp_errno2status(xerrno, &reason);
 

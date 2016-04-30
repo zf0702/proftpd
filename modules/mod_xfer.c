@@ -580,15 +580,27 @@ static int xfer_parse_cmdlist(const char *name, config_rec *c,
 }
 
 static int transmit_normal(pool *p, char *buf, size_t bufsz) {
-  long sz = pr_fsio_read(retr_fh, buf, bufsz);
+  int xerrno;
+  long sz;
+  pr_error_t *err = NULL;
+
+  sz = pr_fsio_read_with_error(p, retr_fh, buf, bufsz, &err);
+  xerrno = errno;
+  pr_error_set_location(err, &xfer_module, __FILE__, __LINE__ - 2);
+  pr_error_set_goal(err, pstrcat(p, "normal download of '", retr_fh->fh_path,
+    "'", NULL));
 
   if (sz < 0) {
-    int xerrno = errno;
-
     (void) pr_trace_msg("fileperms", 1, "RETR, user '%s' (UID %s, GID %s): "
       "error reading from '%s': %s", session.user,
       pr_uid2str(p, session.uid), pr_gid2str(p, session.gid),
       retr_fh->fh_path, strerror(xerrno));
+
+    if (err != NULL) {
+      pr_log_debug(DEBUG5, "%s", pr_error_strerror(err, 0));
+      pr_error_destroy(err);
+      err = NULL;
+    }
 
     errno = xerrno;
     return 0;
@@ -825,15 +837,28 @@ static void stor_chown(pool *p) {
   if (session.fsuid != (uid_t) -1 &&
       xfer_path != NULL) {
     int res, xerrno = 0;
+    pr_error_t *err = NULL;
 
     PRIVS_ROOT
-    res = pr_fsio_lchown(xfer_path, session.fsuid, session.fsgid);
+    res = pr_fsio_lchown_with_error(p, xfer_path, session.fsuid, session.fsgid,
+      &err);
     xerrno = errno;
     PRIVS_RELINQUISH
 
+    pr_error_set_location(err, &xfer_module, __FILE__, __LINE__ - 5);
+    pr_error_set_goal(err, pstrcat(p, "set UserOwner of '", xfer_path,
+      "'", NULL));
+
     if (res < 0) {
-      pr_log_pri(PR_LOG_WARNING, "lchown(%s) as root failed: %s", xfer_path,
-        strerror(xerrno));
+      if (err != NULL) {
+        pr_log_pri(PR_LOG_WARNING, "%s", pr_error_strerror(err, 0));
+        pr_error_destroy(err);
+        err = NULL;
+
+      } else {
+        pr_log_pri(PR_LOG_WARNING, "lchown(%s) as root failed: %s", xfer_path,
+          strerror(xerrno));
+      }
 
     } else {
       if (session.fsgid != (gid_t) -1) {
@@ -864,13 +889,24 @@ static void stor_chown(pool *p) {
        */
       xerrno = 0;
       PRIVS_ROOT
-      res = pr_fsio_chmod(xfer_path, st.st_mode);
+      res = pr_fsio_chmod_with_error(p, xfer_path, st.st_mode, &err);
       xerrno = errno;
       PRIVS_RELINQUISH
 
+      pr_error_set_location(err, &xfer_module, __FILE__, __LINE__ - 4);
+      pr_error_set_goal(err, pstrcat(p, "restore SUID/SGID on '", xfer_path,
+        "'", NULL));
+
       if (res < 0) {
-        pr_log_debug(DEBUG0, "root chmod(%s) to %04o failed: %s", xfer_path,
-          (unsigned int) st.st_mode, strerror(xerrno));
+        if (err != NULL) {
+          pr_log_debug(DEBUG0, "%s", pr_error_strerror(err, 0));
+          pr_error_destroy(err);
+          err = NULL;
+
+        } else {
+          pr_log_debug(DEBUG0, "root chmod(%s) to %04o failed: %s", xfer_path,
+            (unsigned int) st.st_mode, strerror(xerrno));
+        }
 
       } else {
         pr_log_debug(DEBUG2, "root chmod(%s) to %04o successful", xfer_path,
@@ -882,6 +918,7 @@ static void stor_chown(pool *p) {
              xfer_path != NULL) {
     register unsigned int i;
     int res, use_root_privs = TRUE, xerrno = 0;
+    pr_error_t *err = NULL;
 
     /* Check if session.fsgid is in session.gids.  If not, use root privs. */
     for (i = 0; i < session.gids->nelts; i++) {
@@ -897,16 +934,28 @@ static void stor_chown(pool *p) {
       PRIVS_ROOT
     }
 
-    res = pr_fsio_lchown(xfer_path, (uid_t) -1, session.fsgid);
+    res = pr_fsio_lchown_with_error(p, xfer_path, (uid_t) -1, session.fsgid,
+      &err);
     xerrno = errno;
 
     if (use_root_privs) {
       PRIVS_RELINQUISH
     }
 
+    pr_error_set_location(err, &xfer_module, __FILE__, __LINE__ - 8);
+    pr_error_set_goal(err, pstrcat(p, "set GroupOwner of '", xfer_path, "'",
+      NULL));
+
     if (res < 0) {
-      pr_log_pri(PR_LOG_WARNING, "%slchown(%s) failed: %s",
-        use_root_privs ? "root " : "", xfer_path, strerror(xerrno));
+      if (err != NULL) {
+        pr_log_pri(PR_LOG_WARNING, "%s", pr_error_strerror(err, 0));
+        pr_error_destroy(err);
+        err = NULL;
+
+      } else {
+        pr_log_pri(PR_LOG_WARNING, "%slchown(%s) failed: %s",
+          use_root_privs ? "root " : "", xfer_path, strerror(xerrno));
+      }
 
     } else {
       pr_log_debug(DEBUG2, "%slchown(%s) to GID %s successful",
@@ -924,17 +973,28 @@ static void stor_chown(pool *p) {
         PRIVS_ROOT
       }
 
-      res = pr_fsio_chmod(xfer_path, st.st_mode);
+      res = pr_fsio_chmod_with_error(p, xfer_path, st.st_mode, &err);
       xerrno = errno;
 
       if (use_root_privs) {
         PRIVS_RELINQUISH
       }
 
+      pr_error_set_location(err, &xfer_module, __FILE__, __LINE__ - 7);
+      pr_error_set_goal(err, pstrcat(p, "restore SUID/SGID of '", xfer_path,
+        "'", NULL));
+
       if (res < 0) {
-        pr_log_debug(DEBUG0, "%schmod(%s) to %04o failed: %s",
-          use_root_privs ? "root " : "", xfer_path, (unsigned int) st.st_mode,
-          strerror(xerrno));
+        if (err != NULL) {
+          pr_log_debug(DEBUG0, "%s", pr_error_strerror(err, 0));
+          pr_error_destroy(err);
+          err = NULL;
+
+        } else {
+          pr_log_debug(DEBUG0, "%schmod(%s) to %04o failed: %s",
+            use_root_privs ? "root " : "", xfer_path, (unsigned int) st.st_mode,
+            strerror(xerrno));
+        }
       }
     }
   }
@@ -2007,12 +2067,15 @@ MODRET xfer_stor(cmd_rec *cmd) {
      * be doing short writes, and we ideally should be more resilient/graceful
      * in the face of such things.
      */
-    res = pr_fsio_write(stor_fh, lbuf, len);
-    if (res != len) {
-      xerrno = EIO;
+    res = pr_fsio_write_with_error(cmd->pool, stor_fh, lbuf, len, &err);
+    xerrno = errno;
+    pr_error_set_location(err, &xfer_module, __FILE__, __LINE__ - 2);
+    pr_error_set_goal(err, pstrcat(cmd->pool, "upload of '", stor_fh->fh_path,
+      "'", NULL));
 
-      if (res < 0) {
-        xerrno = errno;
+    if (res != len) {
+      if (res > 0) {
+        xerrno = EIO;
       }
 
       (void) pr_trace_msg("fileperms", 1, "%s, user '%s' (UID %s, GID %s): "
@@ -2020,6 +2083,12 @@ MODRET xfer_stor(cmd_rec *cmd) {
         pr_uid2str(cmd->tmp_pool, session.uid),
         pr_gid2str(cmd->tmp_pool, session.gid), stor_fh->fh_path,
         strerror(xerrno));
+
+      if (err != NULL) {
+        pr_log_debug(DEBUG5, "%s", pr_error_strerror(err, 0));
+        pr_error_destroy(err);
+        err = NULL;
+      }
 
       stor_abort(cmd->pool);
       pr_data_abort(xerrno, FALSE);

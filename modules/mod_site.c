@@ -26,12 +26,11 @@
 /* "SITE" commands module for ProFTPD. */
 
 #include "conf.h"
-
-/* From mod_core.c */
-extern int core_chmod(cmd_rec *cmd, const char *path, mode_t mode);
-extern int core_chgrp(cmd_rec *cmd, const char *path, uid_t uid, gid_t gid);
+#include "fsio-err.h"
 
 modret_t *site_dispatch(cmd_rec *cmd);
+
+module site_module;
 
 static struct {
   char *cmd;
@@ -63,14 +62,15 @@ static char *_get_full_cmd(cmd_rec *cmd) {
 }
 
 MODRET site_chgrp(cmd_rec *cmd) {
-  int res;
+  int res, xerrno = 0;
   gid_t gid;
-  char *path = NULL, *tmp = NULL, *arg = "";
+  char *cmd_name, *path = NULL, *tmp = NULL, *arg = "";
   struct stat st;
   register unsigned int i = 0;
 #ifdef PR_USE_REGEX
   pr_regex_t *pre;
 #endif
+  pr_error_t *err = NULL;
 
   if (cmd->argc < 3) {
     pr_response_add_err(R_500, _("'SITE %s' not understood"),
@@ -87,7 +87,7 @@ MODRET site_chgrp(cmd_rec *cmd) {
     decoded_path = pr_fs_decode_path2(cmd->tmp_pool, cmd->argv[i],
       FSIO_DECODE_FL_TELL_ERRORS);
     if (decoded_path == NULL) {
-      int xerrno = errno;
+      xerrno = errno;
 
       pr_log_debug(DEBUG8, "'%s' failed to decode properly: %s",
         (char *) cmd->argv[i], strerror(xerrno));
@@ -147,7 +147,7 @@ MODRET site_chgrp(cmd_rec *cmd) {
 
   path = dir_realpath(cmd->tmp_pool, arg);
   if (path == NULL) {
-    int xerrno = errno;
+    xerrno = errno;
 
     pr_response_add_err(R_550, "%s: %s", arg, strerror(xerrno));
 
@@ -166,7 +166,7 @@ MODRET site_chgrp(cmd_rec *cmd) {
     /* Try the parameter as a group name. */
     gid = pr_auth_name2gid(cmd->tmp_pool, cmd->argv[1]);
     if (gid == (gid_t) -1) {
-      int xerrno = EINVAL;
+      xerrno = EINVAL;
 
       pr_log_debug(DEBUG9,
         "SITE CHGRP: Unable to resolve group name '%s' to GID",
@@ -179,15 +179,38 @@ MODRET site_chgrp(cmd_rec *cmd) {
     }
   }
 
-  res = core_chgrp(cmd, path, (uid_t) -1, gid);
-  if (res < 0) {
-    int xerrno = errno;
+  cmd_name = cmd->argv[0];
+  pr_cmd_set_name(cmd, "SITE_CHGRP");
+  if (!dir_check(cmd->tmp_pool, cmd, G_WRITE, path, NULL)) {
+    xerrno = EACCES;
 
+    pr_log_debug(DEBUG7, "SITE CHGRP command denied by <Limit> config");
+    pr_cmd_set_name(cmd, cmd_name);
+
+    pr_cmd_set_errno(cmd, xerrno);
+    errno = xerrno;
+    return PR_ERROR(cmd);
+  }
+  pr_cmd_set_name(cmd, cmd_name);
+
+  res = pr_fsio_lchown_with_error(cmd->pool, path, (uid_t) -1, gid, &err);
+  xerrno = errno;
+  pr_error_set_location(err, &site_module, __FILE__, __LINE__ - 2);
+  pr_error_set_goal(err, pstrcat(cmd->pool, "set SITE CHGRP of '", path,
+    "'", NULL));
+
+  if (res < 0) {
     (void) pr_trace_msg("fileperms", 1, "%s, user '%s' (UID %s, GID %s): "
       "error chown'ing '%s' to GID %s: %s", (char *) cmd->argv[0], session.user,
       pr_uid2str(cmd->tmp_pool, session.uid),
       pr_gid2str(cmd->tmp_pool, session.gid), path,
       pr_gid2str(cmd->tmp_pool, gid), strerror(xerrno));
+
+    if (err != NULL) {
+      pr_log_debug(DEBUG5, "%s", pr_error_strerror(err, 0));
+      pr_error_destroy(err);
+      err = NULL;
+    }
 
     pr_response_add_err(R_550, "%s: %s", arg, strerror(xerrno));
 
@@ -202,14 +225,15 @@ MODRET site_chgrp(cmd_rec *cmd) {
 }
 
 MODRET site_chmod(cmd_rec *cmd) {
-  int res;
+  int res, xerrno = 0;
   mode_t mode = 0;
-  char *dir, *endp, *mode_str, *tmp, *arg = "";
+  char *cmd_name, *dir, *endp, *mode_str, *tmp, *arg = "";
   struct stat st;
   register unsigned int i = 0;
 #ifdef PR_USE_REGEX
   pr_regex_t *pre;
 #endif
+  pr_error_t *err = NULL;
 
   if (cmd->argc < 3) {
     pr_response_add_err(R_500, _("'SITE %s' not understood"),
@@ -226,7 +250,7 @@ MODRET site_chmod(cmd_rec *cmd) {
     decoded_path = pr_fs_decode_path2(cmd->tmp_pool, cmd->argv[i],
       FSIO_DECODE_FL_TELL_ERRORS);
     if (decoded_path == NULL) {
-      int xerrno = errno;
+      xerrno = errno;
 
       pr_log_debug(DEBUG8, "'%s' failed to decode properly: %s",
         (char *) cmd->argv[i], strerror(xerrno));
@@ -286,7 +310,7 @@ MODRET site_chmod(cmd_rec *cmd) {
 
   dir = dir_realpath(cmd->tmp_pool, arg);
   if (dir == NULL) {
-    int xerrno = errno;
+    xerrno = errno;
 
     pr_response_add_err(R_550, "%s: %s", arg, strerror(xerrno));
 
@@ -477,18 +501,38 @@ MODRET site_chmod(cmd_rec *cmd) {
     }
 
     if (invalid) {
-      pr_response_add_err(R_550, _("'%s': invalid mode"), (char *) cmd->argv[1]);
+      xerrno = EINVAL;
 
-      pr_cmd_set_errno(cmd, EINVAL);
-      errno = EINVAL;
+      pr_response_add_err(R_550, _("'%s': invalid mode"),
+        (char *) cmd->argv[1]);
+
+      pr_cmd_set_errno(cmd, xerrno);
+      errno = xerrno;
       return PR_ERROR(cmd);
     }
   }
 
-  res = core_chmod(cmd, dir, mode);
-  if (res < 0) {
-    int xerrno = errno;
+  cmd_name = cmd->argv[0];
+  pr_cmd_set_name(cmd, "SITE_CHMOD");
+  if (!dir_check(cmd->tmp_pool, cmd, G_WRITE, dir, NULL)) {
+    xerrno = EACCES;
 
+    pr_log_debug(DEBUG7, "SITE CHMOD command denied by <Limit> config");
+    pr_cmd_set_name(cmd, cmd_name);
+
+    pr_cmd_set_errno(cmd, xerrno);
+    errno = xerrno;
+    return PR_ERROR(cmd);
+  }
+  pr_cmd_set_name(cmd, cmd_name);
+
+  res = pr_fsio_chmod_with_error(cmd->pool, dir, mode, &err);
+  xerrno = errno;
+  pr_error_set_location(err, &site_module, __FILE__, __LINE__ - 2);
+  pr_error_set_goal(err, pstrcat(cmd->pool, "set SITE CHMOD of '", dir, "'",
+    NULL));
+
+  if (res < 0) {
     (void) pr_trace_msg("fileperms", 1, "%s, user '%s' (UID %s, GID %s): "
       "error chmod'ing '%s' to %04o: %s", (char *) cmd->argv[0], session.user,
       pr_uid2str(cmd->tmp_pool, session.uid),
@@ -496,6 +540,12 @@ MODRET site_chmod(cmd_rec *cmd) {
       strerror(xerrno));
 
     pr_response_add_err(R_550, "%s: %s", cmd->arg, strerror(xerrno));
+
+    if (err != NULL) {
+      pr_log_debug(DEBUG5, "%s", pr_error_strerror(err, 0));
+      pr_error_destroy(err);
+      err = NULL;
+    }
 
     pr_cmd_set_errno(cmd, xerrno);
     errno = xerrno;

@@ -190,8 +190,4 @@ modret_t *mod_create_ret(cmd_rec *, unsigned char, const char *, const char *);
 modret_t *mod_create_error(cmd_rec *, int);
 modret_t *mod_create_data(cmd_rec *, void *);
 
-/* Implemented in mod_core.c */
-int core_chgrp(cmd_rec *, const char *, uid_t, gid_t);
-int core_chmod(cmd_rec *, const char *, mode_t);
-
 #endif /* PR_MODULES_H */
