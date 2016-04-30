@@ -66,6 +66,219 @@ static const char *get_errnum(pool *err_pool, int xerrno) {
   return pstrdup(err_pool, errnum);
 }
 
+START_TEST (fsio_chmod_with_error_test) {
+  int res, xerrno;
+  mode_t mode = 0641;
+  const char *expected, *errstr;
+  pr_error_t *err = NULL;
+
+  res = pr_fsio_chmod_with_error(NULL, NULL, mode, NULL);
+  fail_unless(res < 0, "Unexpectedly chmod'ed null path");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  res = pr_fsio_chmod_with_error(p, NULL, mode, NULL);
+  fail_unless(res < 0, "Unexpectedly chmod'ed null path");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  mark_point();
+  res = pr_fsio_chmod_with_error(NULL, NULL, mode, &err);
+  fail_unless(res < 0, "Unexpectedly chmod'ed null path");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+  fail_unless(err == NULL, "Unexpectedly got error");
+
+  mark_point();
+  res = pr_fsio_chmod_with_error(p, NULL, mode, &err);
+  fail_unless(res < 0, "Unexpectedly chmod'ed null path");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+  fail_unless(err != NULL, "Failed to get error back");
+
+  mark_point();
+  xerrno = errno;
+  errstr = pr_error_strerror(err, PR_ERROR_FORMAT_USE_MINIMAL);
+  expected = pstrcat(p, "chmod() failed with \"", strerror(xerrno),
+    " (EINVAL [", get_errnum(p, xerrno), "])\"", NULL);
+  fail_unless(strcmp(expected, errstr) == 0, "Expected '%s', got '%s'",
+    expected, errstr);
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+START_TEST (fsio_chown_with_error_test) {
+  int res, xerrno;
+  uid_t uid = 0;
+  gid_t gid = 0;
+  const char *expected, *errstr;
+  pr_error_t *err = NULL;
+
+  res = pr_fsio_chown_with_error(NULL, NULL, uid, gid, NULL);
+  fail_unless(res < 0, "Unexpectedly chown'ed null path");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  res = pr_fsio_chown_with_error(p, NULL, uid, gid, NULL);
+  fail_unless(res < 0, "Unexpectedly chown'ed null path");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  mark_point();
+  res = pr_fsio_chown_with_error(NULL, NULL, uid, gid, &err);
+  fail_unless(res < 0, "Unexpectedly chown'ed null path");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+  fail_unless(err == NULL, "Unexpectedly got error");
+
+  mark_point();
+  res = pr_fsio_chown_with_error(p, NULL, uid, gid, &err);
+  fail_unless(res < 0, "Unexpectedly chown'ed null path");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+  fail_unless(err != NULL, "Failed to get error back");
+
+  mark_point();
+  xerrno = errno;
+  errstr = pr_error_strerror(err, PR_ERROR_FORMAT_USE_MINIMAL);
+  expected = pstrcat(p, "chown() failed with \"", strerror(xerrno),
+    " (EINVAL [", get_errnum(p, xerrno), "])\"", NULL);
+  fail_unless(strcmp(expected, errstr) == 0, "Expected '%s', got '%s'",
+    expected, errstr);
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+START_TEST (fsio_fchmod_with_error_test) {
+  int res, xerrno;
+  mode_t mode = 0641;
+  const char *expected, *errstr;
+  pr_error_t *err = NULL;
+
+  res = pr_fsio_fchmod_with_error(NULL, NULL, mode, NULL);
+  fail_unless(res < 0, "Unexpectedly chmod'ed null handle");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  res = pr_fsio_fchmod_with_error(p, NULL, mode, NULL);
+  fail_unless(res < 0, "Unexpectedly chmod'ed null handle");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  mark_point();
+  res = pr_fsio_fchmod_with_error(NULL, NULL, mode, &err);
+  fail_unless(res < 0, "Unexpectedly chmod'ed null handle");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+  fail_unless(err == NULL, "Unexpectedly got error");
+
+  mark_point();
+  res = pr_fsio_fchmod_with_error(p, NULL, mode, &err);
+  fail_unless(res < 0, "Unexpectedly chmod'ed null handle");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+  fail_unless(err != NULL, "Failed to get error back");
+
+  mark_point();
+  xerrno = errno;
+  errstr = pr_error_strerror(err, PR_ERROR_FORMAT_USE_MINIMAL);
+  expected = pstrcat(p, "fchmod() failed with \"", strerror(xerrno),
+    " (EINVAL [", get_errnum(p, xerrno), "])\"", NULL);
+  fail_unless(strcmp(expected, errstr) == 0, "Expected '%s', got '%s'",
+    expected, errstr);
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+START_TEST (fsio_fchown_with_error_test) {
+  int res, xerrno;
+  uid_t uid = 0;
+  gid_t gid = 0;
+  const char *expected, *errstr;
+  pr_error_t *err = NULL;
+
+  res = pr_fsio_fchown_with_error(NULL, NULL, uid, gid, NULL);
+  fail_unless(res < 0, "Unexpectedly chown'ed null handle");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  res = pr_fsio_fchown_with_error(p, NULL, uid, gid, NULL);
+  fail_unless(res < 0, "Unexpectedly chown'ed null handle");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  mark_point();
+  res = pr_fsio_fchown_with_error(NULL, NULL, uid, gid, &err);
+  fail_unless(res < 0, "Unexpectedly chown'ed null handle");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+  fail_unless(err == NULL, "Unexpectedly got error");
+
+  mark_point();
+  res = pr_fsio_fchown_with_error(p, NULL, uid, gid, &err);
+  fail_unless(res < 0, "Unexpectedly chown'ed null handle");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+  fail_unless(err != NULL, "Failed to get error back");
+
+  mark_point();
+  xerrno = errno;
+  errstr = pr_error_strerror(err, PR_ERROR_FORMAT_USE_MINIMAL);
+  expected = pstrcat(p, "fchown() failed with \"", strerror(xerrno),
+    " (EINVAL [", get_errnum(p, xerrno), "])\"", NULL);
+  fail_unless(strcmp(expected, errstr) == 0, "Expected '%s', got '%s'",
+    expected, errstr);
+
+  pr_error_destroy(err);
+}
+END_TEST
+
+START_TEST (fsio_lchown_with_error_test) {
+  int res, xerrno;
+  uid_t uid = 0;
+  gid_t gid = 0;
+  const char *expected, *errstr;
+  pr_error_t *err = NULL;
+
+  res = pr_fsio_lchown_with_error(NULL, NULL, uid, gid, NULL);
+  fail_unless(res < 0, "Unexpectedly lchown'ed null path");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  res = pr_fsio_lchown_with_error(p, NULL, uid, gid, NULL);
+  fail_unless(res < 0, "Unexpectedly lchown'ed null path");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  mark_point();
+  res = pr_fsio_lchown_with_error(NULL, NULL, uid, gid, &err);
+  fail_unless(res < 0, "Unexpectedly lchown'ed null path");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+  fail_unless(err == NULL, "Unexpectedly got error");
+
+  mark_point();
+  res = pr_fsio_lchown_with_error(p, NULL, uid, gid, &err);
+  fail_unless(res < 0, "Unexpectedly lchown'ed null path");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+  fail_unless(err != NULL, "Failed to get error back");
+
+  mark_point();
+  xerrno = errno;
+  errstr = pr_error_strerror(err, PR_ERROR_FORMAT_USE_MINIMAL);
+  expected = pstrcat(p, "lchown() failed with \"", strerror(xerrno),
+    " (EINVAL [", get_errnum(p, xerrno), "])\"", NULL);
+  fail_unless(strcmp(expected, errstr) == 0, "Expected '%s', got '%s'",
+    expected, errstr);
+
+  pr_error_destroy(err);
+}
+END_TEST
+
 START_TEST (fsio_open_with_error_test) {
   int flags, xerrno;
   const char *expected, *errstr, *path;
@@ -449,6 +662,46 @@ START_TEST (fsio_rmdir_with_error_test) {
 }
 END_TEST
 
+START_TEST (fsio_chroot_with_error_test) {
+  int res, xerrno;
+  const char *expected, *errstr, *path;
+  pr_error_t *err = NULL;
+
+  path = "/no/such/path";
+
+  res = pr_fsio_chroot_with_error(NULL, path, NULL);
+  fail_unless(res < 0, "Unexpectedly succeeded with path '%s'", path);
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  res = pr_fsio_chroot_with_error(p, path, NULL);
+  fail_unless(res < 0, "Unexpectedly succeeded with path '%s'", path);
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+
+  res = pr_fsio_chroot_with_error(NULL, path, &err);
+  fail_unless(res < 0, "Unexpectedly succeeded with path '%s'", path);
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+  fail_unless(err == NULL, "Unexpectedly got error back");
+
+  res = pr_fsio_chroot_with_error(p, path, &err);
+  fail_unless(res < 0, "Unexpectedly succeeded with path '%s'", path);
+  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
+    strerror(errno), errno);
+  fail_unless(err != NULL, "Failed to get error back");
+
+  mark_point();
+  xerrno = errno;
+  errstr = pr_error_strerror(err, PR_ERROR_FORMAT_USE_MINIMAL);
+  expected = pstrcat(p, "chroot() failed with \"", strerror(xerrno),
+    " (EPERM [", get_errnum(p, xerrno), "])\"", NULL);
+  fail_unless(strcmp(expected, errstr) == 0, "Expected '%s', got '%s'",
+    expected, errstr);
+
+  pr_error_destroy(err);
+}
+END_TEST
 Suite *tests_get_fsio_err_suite(void) {
   Suite *suite;
   TCase *testcase;
@@ -457,6 +710,11 @@ Suite *tests_get_fsio_err_suite(void) {
   testcase = tcase_create("base");
   tcase_add_checked_fixture(testcase, set_up, tear_down);
 
+  tcase_add_test(testcase, fsio_chmod_with_error_test);
+  tcase_add_test(testcase, fsio_chown_with_error_test);
+  tcase_add_test(testcase, fsio_fchmod_with_error_test);
+  tcase_add_test(testcase, fsio_fchown_with_error_test);
+  tcase_add_test(testcase, fsio_lchown_with_error_test);
   tcase_add_test(testcase, fsio_open_with_error_test);
   tcase_add_test(testcase, fsio_close_with_error_test);
   tcase_add_test(testcase, fsio_read_with_error_test);
@@ -466,8 +724,8 @@ Suite *tests_get_fsio_err_suite(void) {
   tcase_add_test(testcase, fsio_stat_with_error_test);
   tcase_add_test(testcase, fsio_mkdir_with_error_test);
   tcase_add_test(testcase, fsio_rmdir_with_error_test);
+  tcase_add_test(testcase, fsio_chroot_with_error_test);
 
   suite_add_tcase(suite, testcase);
-
   return suite;
 }

@@ -30,28 +30,45 @@
 #include "fsio.h"
 #include "error.h"
 
-pr_fh_t *pr_fsio_open_with_error(pool *p, const char *path, int flags,
+int pr_fsio_chmod_with_error(pool *p, const char *path, mode_t mode,
   pr_error_t **err);
 
+int pr_fsio_chown_with_error(pool *p, const char *path, uid_t uid, gid_t gid,
+  pr_error_t **err);
+
+int pr_fsio_chroot_with_error(pool *p, const char *path, pr_error_t **err);
+
 int pr_fsio_close_with_error(pool *p, pr_fh_t *fh, pr_error_t **err);
+
+int pr_fsio_fchmod_with_error(pool *p, pr_fh_t *fh, mode_t mode,
+  pr_error_t **err);
+
+int pr_fsio_fchown_with_error(pool *p, pr_fh_t *fh, uid_t uid, gid_t gid,
+  pr_error_t **err);
+
+int pr_fsio_lchown_with_error(pool *p, const char *path, uid_t uid, gid_t gid,
+  pr_error_t **err);
+
+int pr_fsio_mkdir_with_error(pool *p, const char *path, mode_t mode,
+  pr_error_t **err);
+
+pr_fh_t *pr_fsio_open_with_error(pool *p, const char *path, int flags,
+  pr_error_t **err);
 
 int pr_fsio_read_with_error(pool *p, pr_fh_t *fh, char *buf, size_t sz,
   pr_error_t **err);
 
-int pr_fsio_write_with_error(pool *p, pr_fh_t *fh, const char *buf, size_t sz,
+int pr_fsio_rename_with_error(pool *p, const char *from, const char *to,
   pr_error_t **err);
+
+int pr_fsio_rmdir_with_error(pool *p, const char *path, pr_error_t **err);
 
 int pr_fsio_stat_with_error(pool *p, const char *path, struct stat *st,
   pr_error_t **err);
 
 int pr_fsio_unlink_with_error(pool *p, const char *path, pr_error_t **err);
 
-int pr_fsio_rename_with_error(pool *p, const char *from, const char *to,
+int pr_fsio_write_with_error(pool *p, pr_fh_t *fh, const char *buf, size_t sz,
   pr_error_t **err);
-
-int pr_fsio_mkdir_with_error(pool *p, const char *path, mode_t mode,
-  pr_error_t **err);
-
-int pr_fsio_rmdir_with_error(pool *p, const char *path, pr_error_t **err);
 
 #endif /* PR_FSIO_ERR_H */
