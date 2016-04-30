@@ -787,7 +787,7 @@ sub rnto_fails_enoent_no_file {
       $self->assert($expected == $resp_code,
         test_msg("Expected response code $expected, got $resp_code"));
 
-      $expected = "Rename $dst_file: No such file or directory";
+      $expected = "$dst_file: No such file or directory";
       $self->assert($expected eq $resp_msg,
         test_msg("Expected response message '$expected', got '$resp_msg'"));
     };
@@ -893,7 +893,7 @@ sub rnto_fails_enoent_no_dir {
       $self->assert($expected == $resp_code,
         test_msg("Expected response code $expected, got $resp_code"));
 
-      $expected = "Rename $dst_file: No such file or directory";
+      $expected = "$dst_file: No such file or directory";
       $self->assert($expected eq $resp_msg,
         test_msg("Expected response message '$expected', got '$resp_msg'"));
     };
@@ -1023,7 +1023,7 @@ sub rnto_fails_eperm {
       $self->assert($expected == $resp_code,
         test_msg("Expected $expected, got $resp_code"));
 
-      $expected = "Rename $dst_file: Permission denied";
+      $expected = "$dst_file: Permission denied";
       $self->assert($expected eq $resp_msg,
         test_msg("Expected '$expected', got '$resp_msg'"));
     };
@@ -1313,7 +1313,7 @@ sub rnto_fails_device_full_bug3354 {
       $self->assert($expected == $resp_code,
         test_msg("Expected $expected, got $resp_code"));
 
-      $expected = "Rename $dst_file: No space left on device";
+      $expected = "$dst_file: No space left on device";
       $self->assert($expected eq $resp_msg,
         test_msg("Expected '$expected', got '$resp_msg'"));
     };
