@@ -2744,70 +2744,6 @@ START_TEST (error_explain_getsockopt_test) {
 }
 END_TEST
 
-/* lchmod */
-static const char *test_explain_lchmod(pool *err_pool, int xerrno,
-    const char *path, mode_t mode, const char **args) {
-
-  if (test_explain_return_eperm == TRUE) {
-    errno = EPERM;
-    return NULL;
-  }
-
-  return pstrdup(err_pool, "it was not meant to be");
-}
-
-START_TEST (error_explain_lchmod_test) {
-  int res, xerrno;
-  pr_error_t *err;
-  pr_error_explanations_t *explainers;
-  module m;
-  const char *name;
-
-  res = pr_error_explain_lchmod(NULL, NULL, 0);
-  fail_unless(res < 0, "Failed to handle null error");
-  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
-    strerror(errno), errno);
-
-  xerrno = EINVAL;
-  err = pr_error_create(p, xerrno);
-  fail_unless(err != NULL, "Failed to allocate error: %s", strerror(errno));
-
-  res = pr_error_explain_lchmod(err, NULL, 0);
-  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
-
-  memset(&m, 0, sizeof(m));
-  m.name = "error";
-  name = "testsuite";
-
-  explainers = pr_error_register_explanations(p, &m, name);
-  fail_unless(explainers != NULL, "Failed to register '%s' explanations: %s",
-    name, strerror(errno));
-
-  res = pr_error_explain_lchmod(err, NULL, 0);
-  fail_unless(res < 0, "Unexpectedly explained error");
-  fail_unless(errno == ENOSYS, "Expected ENOSYS (%d), got %s (%d)", ENOSYS,
-    strerror(errno), errno);
-
-  explainers->explain_lchmod = test_explain_lchmod;
-  test_explain_return_eperm = TRUE;
-
-  res = pr_error_explain_lchmod(err, NULL, 0);
-  fail_unless(res < 0, "Unexpectedly explained error");
-  fail_unless(errno == EPERM, "Expected EPERM (%d), got %s (%d)", EPERM,
-    strerror(errno), errno);
-
-  test_explain_return_eperm = FALSE;
-  res = pr_error_explain_lchmod(err, NULL, 0);
-  fail_unless(res == 0, "Failed to explain error: %s", strerror(errno));
-
-  res = pr_error_unregister_explanations(p, &m, name);
-  fail_unless(res == 0, "Failed to unregister '%s' explanations: %s", name,
-    strerror(errno));
-
-  pr_error_destroy(err);
-}
-END_TEST
-
 /* lchown */
 static const char *test_explain_lchown(pool *err_pool, int xerrno,
     const char *path, uid_t uid, gid_t gid, const char **args) {
@@ -5230,7 +5166,6 @@ Suite *tests_get_error_suite(void) {
   tcase_add_test(testcase, error_explain_getrlimit_test);
   tcase_add_test(testcase, error_explain_getsockname_test);
   tcase_add_test(testcase, error_explain_getsockopt_test);
-  tcase_add_test(testcase, error_explain_lchmod_test);
   tcase_add_test(testcase, error_explain_lchown_test);
   tcase_add_test(testcase, error_explain_link_test);
   tcase_add_test(testcase, error_explain_listen_test);

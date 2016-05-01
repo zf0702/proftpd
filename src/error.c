@@ -2225,43 +2225,6 @@ int pr_error_explain_getsockopt(pr_error_t *err, int fd, int level, int option,
   return 0;
 }
 
-int pr_error_explain_lchmod(pr_error_t *err, const char *path, mode_t mode) {
-  const char *oper = "lchmod()";
-
-  if (err == NULL) {
-    errno = EINVAL;
-    return -1;
-  }
-
-  (void) pr_error_set_operation(err, oper);
-
-  if (error_explainer != NULL) {
-    const char *explained = NULL;
-    int xerrno;
-
-    if (error_explainer->explainers->explain_lchmod != NULL) {
-      explained = (error_explainer->explainers->explain_lchmod)(err->err_pool,
-        err->err_errno, path, mode, &(err->err_args));
-      xerrno = errno;
-
-    } else {
-      xerrno = ENOSYS;
-    }
-
-    if (explained == NULL) {
-      trace_explained_error(error_explainer->m, error_explainer->name,
-        oper, xerrno);
-
-      errno = xerrno;
-      return -1;
-    }
-
-    err->err_explained = explained;
-  }
-
-  return 0;
-}
-
 int pr_error_explain_lchown(pr_error_t *err, const char *path, uid_t uid,
     gid_t gid) {
   const char *oper = "lchown()";

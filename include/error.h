@@ -161,10 +161,6 @@ struct err_explain_rec {
   const char *(*explain_getsockopt)(pool *p, int xerrno, int fd, int level,
     int option, void *val, socklen_t *valsz, const char **args);
 
-  /* Explain lchmod(2) errors. */
-  const char *(*explain_lchmod)(pool *p, int xerrno, const char *path,
-    mode_t mode, const char **args);
-
   /* Explain lchown(2) errors. */
   const char *(*explain_lchown)(pool *p, int xerrno, const char *path,
     uid_t uid, gid_t gid, const char **args);
@@ -448,8 +444,6 @@ int pr_error_explain_getsockname(pr_error_t *err, int fd, struct sockaddr *addr,
 
 int pr_error_explain_getsockopt(pr_error_t *err, int fd, int level, int option,
   void *val, socklen_t *valsz);
-
-int pr_error_explain_lchmod(pr_error_t *err, const char *path, mode_t mode);
 
 int pr_error_explain_lchown(pr_error_t *err, const char *path,
   uid_t uid, gid_t gid);
