@@ -1208,9 +1208,7 @@ int pr_vsnprintf(char *buf, size_t bufsz, const char *fmt, va_list msg) {
     pr_log_pri(PR_LOG_WARNING,
       "error writing format string '%s' into %lu-byte buffer: %s", fmt,
       (unsigned long) bufsz, strerror(errno));
-#if 0
     pr_log_stacktrace(-1, NULL);
-#endif
   }
 
   return res;
