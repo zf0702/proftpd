@@ -284,7 +284,8 @@ static const char *show_uptime(time_t uptime_since) {
 
   updays = (int) uptime_secs / (60 * 60 * 24);
   if (updays > 0) {
-    pos += sprintf(buf + pos, "%d day%s, ", updays, (updays != 1) ? "s" : "");
+    pos += snprintf(buf + pos, sizeof(buf) - pos, "%d day%s, ", updays,
+      (updays != 1) ? "s" : "");
   }
 
   upminutes = (int) uptime_secs / 60;
@@ -295,11 +296,11 @@ static const char *show_uptime(time_t uptime_since) {
   upminutes = upminutes % 60;
 
   if (uphours) {
-    sprintf(buf + pos, "%2d hr%s %02d min", uphours,
+    snprintf(buf + pos, sizeof(buf) - pos, "%2d hr%s %02d min", uphours,
       (uphours != 1) ? "s" : "", upminutes);
 
   } else {
-    sprintf(buf + pos, "%d min", upminutes);
+    snprintf(buf + pos, sizeof(buf) - pos, "%d min", upminutes);
   }
 
   return buf;
