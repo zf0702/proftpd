@@ -109,6 +109,19 @@ const char *pr_strtime2(time_t, int);
 int pr_gettimeofday_millis(uint64_t *);
 int pr_timeval2millis(struct timeval *, uint64_t *);
 
+/* Wrappers around snprintf(3)/vsnprintf(3) which carefully check the
+ * return values.
+ */
+
+int pr_snprintf(char *buf, size_t bufsz, const char *fmt, ...)
+#ifdef __GNUC__
+  __attribute__ ((format (printf, 3, 4)));
+#else
+  ;
+#endif
+
+int pr_vsnprintf(char *buf, size_t bufsz, const char *fmt, va_list msg);
+
 /* Resolve/substitute any "%u" variables in the path.  Returns the resolved
  * path, or NULL if there was an error.
  */
