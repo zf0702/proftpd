@@ -28,7 +28,7 @@
 
 #include "conf.h"
 #include "privs.h"
-#include "mod_log.h"
+#include "logfmt.h"
 #include "jot.h"
 
 module log_module;
