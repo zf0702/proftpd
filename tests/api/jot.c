@@ -105,7 +105,7 @@ START_TEST (jot_filters_create_test) {
   filters = pr_jot_filters_create(p, rules, PR_JOT_FILTER_TYPE_CLASSES, 0);
   fail_unless(filters == NULL, "Failed to handle invalid class name '%s'",
     rules);
-  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+  fail_unless(errno == ENOENT, "Expected ENOENT (%d), got %s (%d)", ENOENT,
     strerror(errno), errno);
 
   assert_jot_class_filter("NONE");
