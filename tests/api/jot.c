@@ -25,6 +25,7 @@
 /* Jot API tests. */
 
 #include "tests.h"
+#include "logfmt.h"
 #include "json.h"
 #include "jot.h"
 
@@ -54,6 +55,7 @@ static void tear_down(void) {
 /* Tests */
 
 static void assert_jot_class_filter(const char *class_name) {
+  pr_jot_filters_t *filters;
   const char *rules;
 
   rules = class_name;
@@ -213,10 +215,10 @@ START_TEST (jot_filters_include_classes_test) {
 
   filters = pr_jot_filters_create(p, "NONE", PR_JOT_FILTER_TYPE_CLASSES, 0);
 
-  res = pr_filters_include_classes(filters, CL_ALL);
+  res = pr_jot_filters_include_classes(filters, CL_ALL);
   fail_unless(res == FALSE, "Expected FALSE, got %d", res);
 
-  res = pr_filters_include_classes(filters, CL_NONE);
+  res = pr_jot_filters_include_classes(filters, CL_NONE);
   fail_unless(res == TRUE, "Expected TRUE, got %d", res);
 
   res = pr_jot_filters_destroy(filters);
@@ -231,7 +233,6 @@ END_TEST
 START_TEST (jot_on_json_test) {
   pr_jot_ctx_t *ctx;
   pr_json_object_t *json;
-  pr_table_t *logfmt2json;
   double num;
   int truth;
   const char *text;
@@ -256,7 +257,7 @@ START_TEST (jot_on_json_test) {
   mark_point();
   pr_jot_on_json(p, ctx, 0, NULL, &num);
 
-  ctx->user_data = pr_table_alloc(p);
+  ctx->user_data = pr_table_alloc(p, 0);
 
   mark_point();
   pr_jot_on_json(p, ctx, 0, NULL, &num);
