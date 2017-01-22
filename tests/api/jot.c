@@ -26,6 +26,7 @@
 
 #include "tests.h"
 #include "json.h"
+#include "jot.h"
 
 static pool *p = NULL;
 
@@ -52,7 +53,7 @@ static void tear_down(void) {
 
 /* Tests */
 
-static void assert_jot_class_filter(pool *p, const char *class_name) {
+static void assert_jot_class_filter(const char *class_name) {
   const char *rules;
 
   rules = class_name;
@@ -105,20 +106,20 @@ START_TEST (jot_filters_create_test) {
   fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
     strerror(errno), errno);
 
-  assert_jot_class_filter(p, "NONE");
-  assert_jot_class_filter(p, "ALL");
-  assert_jot_class_filter(p, "AUTH");
-  assert_jot_class_filter(p, "INFO");
-  assert_jot_class_filter(p, "DIRS");
-  assert_jot_class_filter(p, "READ");
-  assert_jot_class_filter(p, "WRITE");
-  assert_jot_class_filter(p, "SEC");
-  assert_jot_class_filter(p, "SECURE");
-  assert_jot_class_filter(p, "CONNECT");
-  assert_jot_class_filter(p, "EXIT");
-  assert_jot_class_filter(p, "DISCONNECT");
-  assert_jot_class_filter(p, "SSH");
-  assert_jot_class_filter(p, "SFTP");
+  assert_jot_class_filter("NONE");
+  assert_jot_class_filter("ALL");
+  assert_jot_class_filter("AUTH");
+  assert_jot_class_filter("INFO");
+  assert_jot_class_filter("DIRS");
+  assert_jot_class_filter("READ");
+  assert_jot_class_filter("WRITE");
+  assert_jot_class_filter("SEC");
+  assert_jot_class_filter("SECURE");
+  assert_jot_class_filter("CONNECT");
+  assert_jot_class_filter("EXIT");
+  assert_jot_class_filter("DISCONNECT");
+  assert_jot_class_filter("SSH");
+  assert_jot_class_filter("SFTP");
 
   rules = "AUTH,!INFO";
 
