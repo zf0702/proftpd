@@ -66,7 +66,7 @@ static void assert_jot_class_filter(const char *class_name) {
     rules, strerror(errno));
   (void) pr_jot_filters_destroy(filters);
 
-  rules = pstrcat(p, "!", class_name);
+  rules = pstrcat(p, "!", class_name, NULL);
 
   mark_point();
   filters = pr_jot_filters_create(p, rules, PR_JOT_FILTER_TYPE_CLASSES, 0);
