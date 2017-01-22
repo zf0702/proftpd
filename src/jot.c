@@ -932,17 +932,18 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
         }
 
       } else {
-        char buf[128], *ptr;
+        char buf[128], *ch;
 
         /* Make sure that the SITE command used is all in uppercase, for
          * logging purposes.
          */
-        for (ptr = cmd->argv[1]; *ptr; ptr++) {
-          *ptr = toupper((int) *ptr);
+        for (ch = cmd->argv[1]; *ch; ch++) {
+          *ch = toupper((int) *ch);
         }
 
         memset(buf, '\0', sizeof(buf));
-        snprintf(buf, sizeof(buf)-1, "%s %s", cmd->argv[0], cmd->argv[1]);
+        snprintf(buf, sizeof(buf)-1, "%s %s", (char *) cmd->argv[0],
+          (char *) cmd->argv[1]);
 
         method = pstrdup(p, buf);
       }
@@ -1578,7 +1579,7 @@ static array_header *filter_get_cmd_ids(pool *p, array_header *names,
 pr_jot_filters_t *pr_jot_filters_create(pool *p, const char *rules, int opts,
     int flags) {
   int included_classes, excluded_classes;
-  pool *sub_pool, *tmp_pool;;
+  pool *sub_pool, *tmp_pool;
   array_header *cmd_ids, *names;
   pr_jot_filters_t *filters;
 

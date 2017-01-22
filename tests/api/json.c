@@ -161,6 +161,17 @@ START_TEST (json_object_to_text_test) {
   fail_unless(strcmp(text, expected) == 0, "Expected '%s', got '%s'", expected,
     text);
 
+  (void) pr_json_object_set_string(p, json, "foo", "bar");
+
+  expected = "{\"foo\":\"bar\"}";
+
+  mark_point();
+  text = pr_json_object_to_text(p, json, "");
+  fail_unless(text != NULL, "Failed to get text for object: %s",
+    strerror(errno));
+  fail_unless(strcmp(text, expected) == 0, "Expected '%s', got '%s'", expected,
+    text);
+
   (void) pr_json_object_free(json);
 }
 END_TEST
