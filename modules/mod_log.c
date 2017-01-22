@@ -2125,8 +2125,8 @@ static void log_exit_ev(const void *event_data, void *user_data) {
 
   cmd = pr_cmd_alloc(session.pool, 1, pstrdup(session.pool, "EXIT"));
   cmd->cmd_class |= CL_DISCONNECT;
-
-  (void) log_any(cmd);
+  (void) pr_cmd_dispatch_phase(cmd, LOG_CMD,
+    PR_CMD_DISPATCH_FL_CLEAR_RESPONSE);
 }
 
 static void log_postparse_ev(const void *event_data, void *user_data) {

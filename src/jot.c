@@ -23,7 +23,7 @@
  */
 
 #include "conf.h"
-#include "mod_log.h"
+#include "logfmt.h"
 #include "json.h"
 #include "jot.h"
 
@@ -62,7 +62,7 @@ static unsigned int logfmt_json_keyhash(const void *k, size_t ksz) {
   unsigned char c;
   unsigned int res;
 
-  memcpy(&c, k, ksz);
+  c = *((unsigned char *) k);
   res = (c << 8);
 
   return res;
@@ -175,12 +175,9 @@ pr_table_t *pr_jot_get_logfmt2json_map(pool *p) {
     PR_JSON_TYPE_NUMBER);
   add_json_info(p, map, LOGFMT_META_ISO8601, "timestamp", PR_JSON_TYPE_STRING);
   add_json_info(p, map, LOGFMT_META_GROUP, "group", PR_JSON_TYPE_STRING);
-
-#if 0
   add_json_info(p, map, LOGFMT_META_CONNECT, "connecting", PR_JSON_TYPE_BOOL);
   add_json_info(p, map, LOGFMT_META_DISCONNECT, "disconnecting",
     PR_JSON_TYPE_BOOL);
-#endif
 
   return map;
 }
@@ -222,6 +219,9 @@ void pr_jot_on_json(pool *p, pr_jot_ctx_t *ctx, unsigned char logfmt_id,
       (unsigned int) logfmt_id);
     return;
   }
+
+  pr_trace_msg(trace_channel, 18, "jotting LogFormat ID %u as JSON %s (%s)",
+    (unsigned int) logfmt_id, pr_json_type_name(lji->json_type), lji->json_key);
 
   switch (lji->json_type) {
     case PR_JSON_TYPE_STRING: {
@@ -1223,15 +1223,6 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
       break;
     }
 
-#if 0
-    case LOGFMT_META_CONNECT:
-    case LOGFMT_META_DISCONNECT: {
-      int val = TRUE;
-      (on_meta)(p, ctx, logfmt_id, NULL, &val);
-      break;
-    }
-#endif
-
     default:
       pr_trace_msg(trace_channel, 2, "skipping unsupported LogFormat ID %u",
         (unsigned int) logfmt_id);
@@ -1327,6 +1318,16 @@ int pr_jot_resolve_logfmt(pool *p, cmd_rec *cmd, pr_jot_filters_t *filters,
     pr_trace_msg(trace_channel, 17, "ignoring filtered event '%s'",
       (const char *) cmd->argv[0]);
     return 0;
+  }
+
+  /* Special handling for the CONNECT/DISCONNECT meta. */
+  if (cmd->cmd_class == CL_CONNECT) {
+    int val = TRUE;
+    (on_meta)(p, ctx, LOGFMT_META_CONNECT, NULL, &val);
+
+  } else if (cmd->cmd_class == CL_DISCONNECT) {
+    int val = TRUE;
+    (on_meta)(p, ctx, LOGFMT_META_DISCONNECT, NULL, &val);
   }
 
   while (*logfmt) {

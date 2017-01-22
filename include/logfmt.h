@@ -28,6 +28,7 @@
 /* These "meta" sequences represent the parsed LogFormat variables. */
 #define LOGFMT_META_START		0xff
 #define LOGFMT_META_ARG_END		0xfe
+
 #define LOGFMT_META_ARG			1
 #define LOGFMT_META_BYTES_SENT		2
 #define LOGFMT_META_FILENAME		3
@@ -78,5 +79,7 @@
 #define LOGFMT_META_FILE_SIZE		48
 #define LOGFMT_META_XFER_TYPE		49
 #define LOGFMT_META_REMOTE_PORT		50
+#define LOGFMT_META_CONNECT		51
+#define LOGFMT_META_DISCONNECT		52
 
 #endif /* PR_LOGFMT_H */
