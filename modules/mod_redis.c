@@ -86,7 +86,7 @@ static void log_event(cmd_rec *cmd) {
     jot_ctx->user_data = jot_logfmt2json;
 
     res = pr_jot_resolve_logfmt(tmp_pool, cmd, jot_filters, log_fmt, jot_ctx,
-      pr_jot_on_json, NULL);
+      pr_jot_on_json, NULL, NULL);
     if (res == 0) {
       payload = pr_json_object_to_text(tmp_pool, jot_ctx->log, "");
       payload_len = strlen(payload);

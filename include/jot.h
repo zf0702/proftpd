@@ -31,6 +31,7 @@
 
 /* Jot keys for LogFormat variables, e.g. for key/value logging via JSON. */
 #define PR_JOT_LOGFMT_ANON_PASSWD_KEY	"anon_password"
+#define PR_JOT_LOGFMT_BASENAME_KEY	"basename"
 #define PR_JOT_LOGFMT_BYTES_SENT_KEY	"bytes_sent"
 #define PR_JOT_LOGFMT_CLASS_KEY		"connection_class"
 #define PR_JOT_LOGFMT_COMMAND_KEY	"raw_command"
@@ -43,6 +44,8 @@
 #define PR_JOT_LOGFMT_EOS_REASON_KEY	"session_end_reason"
 #define PR_JOT_LOGFMT_FILENAME_KEY	"file"
 #define PR_JOT_LOGFMT_FILE_MODIFIED_KEY	"file_modified"
+#define PR_JOT_LOGFMT_FILE_OFFSET_KEY	"file_offset"
+#define PR_JOT_LOGFMT_FILE_SIZE_KEY	"file_size"
 #define PR_JOT_LOGFMT_GID_KEY		"gid"
 #define PR_JOT_LOGFMT_GROUP_KEY		"group"
 #define PR_JOT_LOGFMT_IDENT_USER_KEY	"identd_user"
@@ -62,8 +65,10 @@
 #define PR_JOT_LOGFMT_RAW_BYTES_OUT_KEY	"session_bytes_sent"
 #define PR_JOT_LOGFMT_REMOTE_HOST_KEY	"remote_dns"
 #define PR_JOT_LOGFMT_REMOTE_IP_KEY	"remote_ip"
+#define PR_JOT_LOGFMT_REMOTE_PORT_KEY	"remote_port"
 #define PR_JOT_LOGFMT_RENAME_FROM_KEY	"rename_from"
 #define PR_JOT_LOGFMT_RESPONSE_CODE_KEY	"response_code"
+#define PR_JOT_LOGFMT_RESPONSE_MS_KEY	"response_millis"
 #define PR_JOT_LOGFMT_RESPONSE_MSG_KEY	"response_msg"
 #define PR_JOT_LOGFMT_SECONDS_KEY	"transfer_secs"
 #define PR_JOT_LOGFMT_TIME_KEY		"local_time"
@@ -71,9 +76,11 @@
 #define PR_JOT_LOGFMT_USER_KEY		"user"
 #define PR_JOT_LOGFMT_VERSION_KEY	"server_version"
 #define PR_JOT_LOGFMT_VHOST_IP_KEY	"server_ip"
+#define PR_JOT_LOGFMT_XFER_MS_KEY	"transfer_millis"
 #define PR_JOT_LOGFMT_XFER_PATH_KEY	"transfer_path"
 #define PR_JOT_LOGFMT_XFER_FAILURE_KEY	"transfer_failure"
 #define PR_JOT_LOGFMT_XFER_STATUS_KEY	"transfer_status"
+#define PR_JOT_LOGFMT_XFER_TYPE_KEY	"transfer_type"
 
 /* This opaque structure is used for tracking filters for events. */
 typedef struct jot_filters_rec pr_jot_filters_t;
@@ -112,6 +119,7 @@ int pr_jot_resolve_logfmt(pool *p, cmd_rec *cmd, pr_jot_filters_t *filters,
   unsigned char *logfmt, pr_jot_ctx_t *ctx,
   void (*on_meta)(pool *, pr_jot_ctx_t *, unsigned char, const char *,
     const void *),
+  void (*on_default)(pool *, pr_jot_ctx_t *, unsigned char),
   void (*on_other)(pool *, pr_jot_ctx_t *, unsigned char));
 
 /* Canned `on_meta` callback to use when resolving LogFormat strings into

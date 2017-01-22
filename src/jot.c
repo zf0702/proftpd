@@ -107,6 +107,8 @@ pr_table_t *pr_jot_get_logfmt2json(pool *p) {
    * for use e.g. as JSON object member names.
    */
 
+  add_json_info(p, map, LOGFMT_META_ANON_PASS, PR_JOT_LOGFMT_ANON_PASSWD_KEY,
+    PR_JSON_TYPE_STRING);
   add_json_info(p, map, LOGFMT_META_BYTES_SENT, PR_JOT_LOGFMT_BYTES_SENT_KEY,
     PR_JSON_TYPE_NUMBER);
   add_json_info(p, map, LOGFMT_META_FILENAME, PR_JOT_LOGFMT_FILENAME_KEY,
@@ -183,6 +185,8 @@ pr_table_t *pr_jot_get_logfmt2json(pool *p) {
     PR_JSON_TYPE_STRING);
   add_json_info(p, map, LOGFMT_META_XFER_FAILURE,
     PR_JOT_LOGFMT_XFER_FAILURE_KEY, PR_JSON_TYPE_STRING);
+  add_json_info(p, map, LOGFMT_META_XFER_TYPE, PR_JOT_LOGFMT_XFER_TYPE_KEY,
+    PR_JSON_TYPE_STRING);
   add_json_info(p, map, LOGFMT_META_MICROSECS, PR_JOT_LOGFMT_MICROSECS_KEY,
     PR_JSON_TYPE_NUMBER);
   add_json_info(p, map, LOGFMT_META_MILLISECS, PR_JOT_LOGFMT_MILLISECS_KEY,
@@ -191,6 +195,18 @@ pr_table_t *pr_jot_get_logfmt2json(pool *p) {
     PR_JSON_TYPE_STRING);
   add_json_info(p, map, LOGFMT_META_GROUP, PR_JOT_LOGFMT_GROUP_KEY,
     PR_JSON_TYPE_STRING);
+  add_json_info(p, map, LOGFMT_META_BASENAME, PR_JOT_LOGFMT_BASENAME_KEY,
+    PR_JSON_TYPE_STRING);
+  add_json_info(p, map, LOGFMT_META_FILE_OFFSET, PR_JOT_LOGFMT_FILE_OFFSET_KEY,
+    PR_JSON_TYPE_NUMBER);
+  add_json_info(p, map, LOGFMT_META_XFER_MS, PR_JOT_LOGFMT_XFER_MS_KEY,
+    PR_JSON_TYPE_NUMBER);
+  add_json_info(p, map, LOGFMT_META_RESPONSE_MS, PR_JOT_LOGFMT_RESPONSE_MS_KEY,
+    PR_JSON_TYPE_NUMBER);
+  add_json_info(p, map, LOGFMT_META_FILE_SIZE, PR_JOT_LOGFMT_FILE_SIZE_KEY,
+    PR_JSON_TYPE_NUMBER);
+  add_json_info(p, map, LOGFMT_META_REMOTE_PORT, PR_JOT_LOGFMT_REMOTE_IP_KEY,
+    PR_JSON_TYPE_NUMBER);
   add_json_info(p, map, LOGFMT_META_CONNECT, PR_JOT_LOGFMT_CONNECT_KEY,
     PR_JSON_TYPE_BOOL);
   add_json_info(p, map, LOGFMT_META_DISCONNECT, PR_JOT_LOGFMT_DISCONNECT_KEY,
@@ -283,6 +299,110 @@ static char *get_meta_arg(pool *p, unsigned char *meta, size_t *arg_len) {
   *arg_len = len;
 
   return pstrdup(p, buf);
+}
+
+static const char *get_meta_basename(cmd_rec *cmd) {
+  const char *base = NULL, *path = NULL;
+  pool *p;
+
+  p = cmd->tmp_pool;
+  if (pr_cmd_cmp(cmd, PR_CMD_RNTO_ID) == 0) {
+    path = pr_fs_decode_path(p, cmd->arg);
+
+  } else if (pr_cmd_cmp(cmd, PR_CMD_RETR_ID) == 0) {
+    path = pr_table_get(cmd->notes, "mod_xfer.retr-path", NULL);
+
+  } else if (pr_cmd_cmp(cmd, PR_CMD_APPE_ID) == 0 ||
+             pr_cmd_cmp(cmd, PR_CMD_STOR_ID) == 0) {
+    path = pr_table_get(cmd->notes, "mod_xfer.store-path", NULL);
+
+  } else if (session.xfer.p != NULL &&
+             session.xfer.path != NULL) {
+    path = session.xfer.path;
+
+  } else if (pr_cmd_cmp(cmd, PR_CMD_CDUP_ID) == 0 ||
+             pr_cmd_cmp(cmd, PR_CMD_PWD_ID) == 0 ||
+             pr_cmd_cmp(cmd, PR_CMD_XCUP_ID) == 0 ||
+             pr_cmd_cmp(cmd, PR_CMD_XPWD_ID) == 0) {
+    path = pr_fs_getcwd();
+
+  } else if (pr_cmd_cmp(cmd, PR_CMD_CWD_ID) == 0 ||
+             pr_cmd_cmp(cmd, PR_CMD_XCWD_ID) == 0) {
+
+    /* Note: by this point in the dispatch cycle, the current working
+     * directory has already been changed.  For the CWD/XCWD commands, this
+     * means that dir_abs_path() may return an improper path, with the target
+     * directory being reported twice.  To deal with this, do not use
+     * dir_abs_path(), and use pr_fs_getvwd()/pr_fs_getcwd() instead.
+     */
+    if (session.chroot_path != NULL) {
+      /* Chrooted session. */
+      path = strcmp(pr_fs_getvwd(), "/") ?  pr_fs_getvwd() :
+        session.chroot_path;
+
+    } else {
+      /* Non-chrooted session. */
+       path = pr_fs_getcwd();
+    }
+
+  } else if (pr_cmd_cmp(cmd, PR_CMD_SITE_ID) == 0 &&
+             (strncasecmp(cmd->argv[1], "CHGRP", 6) == 0 ||
+              strncasecmp(cmd->argv[1], "CHMOD", 6) == 0 ||
+              strncasecmp(cmd->argv[1], "UTIME", 6) == 0)) {
+    register unsigned int i;
+    char *ptr = "";
+
+    for (i = 3; i <= cmd->argc-1; i++) {
+      ptr = pstrcat(p, ptr, *ptr ? " " : "",
+        pr_fs_decode_path(p, cmd->argv[i]), NULL);
+    }
+
+    path = ptr;
+
+  } else {
+    /* Some commands (i.e. DELE, MKD, RMD, XMKD, and XRMD) have associated
+     * filenames that are not stored in the session.xfer structure; these
+     * should be expanded properly as well.
+     */
+    if (pr_cmd_cmp(cmd, PR_CMD_DELE_ID) == 0 ||
+        pr_cmd_cmp(cmd, PR_CMD_LIST_ID) == 0 ||
+        pr_cmd_cmp(cmd, PR_CMD_MDTM_ID) == 0 ||
+        pr_cmd_cmp(cmd, PR_CMD_MKD_ID) == 0 ||
+        pr_cmd_cmp(cmd, PR_CMD_MLSD_ID) == 0 ||
+        pr_cmd_cmp(cmd, PR_CMD_MLST_ID) == 0 ||
+        pr_cmd_cmp(cmd, PR_CMD_NLST_ID) == 0 ||
+        pr_cmd_cmp(cmd, PR_CMD_RMD_ID) == 0 ||
+        pr_cmd_cmp(cmd, PR_CMD_XMKD_ID) == 0 ||
+        pr_cmd_cmp(cmd, PR_CMD_XRMD_ID) == 0) {
+       path = pr_fs_decode_path(p, cmd->arg);
+
+    } else if (pr_cmd_cmp(cmd, PR_CMD_MFMT_ID) == 0) {
+      /* MFMT has, as its filename, the second argument. */
+      path = pr_fs_decode_path(p, cmd->argv[2]);
+    }
+  }
+
+  if (path != NULL) {
+    char *ptr = NULL;
+
+    ptr = strrchr(path, '/');
+    if (ptr != NULL) {
+      if (ptr != path) {
+        base = ptr + 1;
+
+      } else if (*(ptr + 1) != '\0') {
+        base = ptr + 1;
+
+      } else {
+        base = path;
+      }
+
+    } else {
+      base = path;
+    }
+  }
+
+  return base;
 }
 
 static const char *get_meta_dir_name(cmd_rec *cmd) {
@@ -669,9 +789,47 @@ static const char *get_meta_transfer_status(cmd_rec *cmd) {
   return transfer_status;
 }
 
+static const char *get_meta_transfer_type(cmd_rec *cmd) {
+  const char *transfer_type = NULL;
+
+  /* If the current command is one that incurs a data transfer, then we
+   * need to do more work.  If not, it's an easy substitution.
+   */
+  if (pr_cmd_cmp(cmd, PR_CMD_APPE_ID) == 0 ||
+      pr_cmd_cmp(cmd, PR_CMD_LIST_ID) == 0 ||
+      pr_cmd_cmp(cmd, PR_CMD_MLSD_ID) == 0 ||
+      pr_cmd_cmp(cmd, PR_CMD_NLST_ID) == 0 ||
+      pr_cmd_cmp(cmd, PR_CMD_RETR_ID) == 0 ||
+      pr_cmd_cmp(cmd, PR_CMD_STOR_ID) == 0 ||
+      pr_cmd_cmp(cmd, PR_CMD_STOU_ID) == 0) {
+    const char *proto;
+
+    proto = pr_session_get_protocol(0);
+
+    if (strncmp(proto, "sftp", 5) == 0 ||
+        strncmp(proto, "scp", 4) == 0) {
+
+      /* Always binary. */
+      transfer_type = "binary";
+
+    } else {
+      if ((session.sf_flags & SF_ASCII) ||
+          (session.sf_flags & SF_ASCII_OVERRIDE)) {
+        transfer_type = "ascii";
+
+      } else {
+        transfer_type = "binary";
+      }
+    }
+  }
+
+  return transfer_type;
+}
+
 static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
     cmd_rec *cmd, void (*on_meta)(pool *, pr_jot_ctx_t *, unsigned char,
-      const char *, const void *)) {
+      const char *, const void *), void (*on_default)(pool *, pr_jot_ctx_t *,
+      unsigned char)) {
   unsigned char *ptr, logfmt_id;
   int auto_adjust_ptr = TRUE;
 
@@ -679,6 +837,22 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
   logfmt_id = *ptr;
 
   switch (logfmt_id) {
+    case LOGFMT_META_BASENAME: {
+      const char *basename;
+
+      basename = get_meta_basename(cmd);
+      if (basename != NULL) {
+        (on_meta)(p, ctx, logfmt_id, NULL, basename);
+
+      } else {
+        if (on_default != NULL) {
+          (on_default)(p, ctx, logfmt_id);
+        }
+      }
+
+      break;
+    }
+
     case LOGFMT_META_BYTES_SENT: {
       double bytes_sent;
       int have_bytes = FALSE;
@@ -694,6 +868,11 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
 
       if (have_bytes == TRUE) {
         (on_meta)(p, ctx, logfmt_id, NULL, &bytes_sent);
+
+      } else {
+        if (on_default != NULL) {
+          (on_default)(p, ctx, logfmt_id);
+        }
       }
 
       break;
@@ -705,9 +884,50 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
       filename = get_meta_filename(cmd);
       if (filename != NULL) {
         (on_meta)(p, ctx, logfmt_id, NULL, filename);
+
+      } else {
+        if (on_default != NULL) {
+          (on_default)(p, ctx, logfmt_id);
+        }
       }
 
       break;
+    }
+
+    case LOGFMT_META_FILE_OFFSET: {
+      const off_t *note;
+
+      note = pr_table_get(cmd->notes, "mod_xfer.file-offset", NULL);
+      if (note != NULL) {
+        double file_offset;
+
+        file_offset = (double) *note;;
+        (on_meta)(p, ctx, logfmt_id, NULL, &file_offset);
+
+      } else {
+        if (on_default) {
+          (on_default)(p, ctx, logfmt_id);
+        }
+      }
+
+      break;
+    }
+
+    case LOGFMT_META_FILE_SIZE: {
+      const off_t *note;
+
+      note = pr_table_get(cmd->notes, "mod_xfer.file-size", NULL);
+      if (note != NULL) {
+        double file_size;
+
+        file_size = (double) *note;
+        (on_meta)(p, ctx, logfmt_id, NULL, &file_size);
+
+      } else {
+        if (on_default) {
+          (on_default)(p, ctx, logfmt_id);
+        }
+      }
     }
 
     case LOGFMT_META_ENV_VAR: {
@@ -727,6 +947,11 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
 
           field_name = pstrcat(p, PR_JOT_LOGFMT_ENV_VAR_KEY, key, NULL);
           (on_meta)(p, ctx, logfmt_id, field_name, env);
+
+        } else {
+          if (on_default != NULL) {
+            (on_default)(p, ctx, logfmt_id);
+          }
         }
       }
 
@@ -750,12 +975,26 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
       break;
     }
 
+    case LOGFMT_META_REMOTE_PORT: {
+      double client_port;
+
+      client_port = session.c->remote_port;
+      (on_meta)(p, ctx, logfmt_id, NULL, &client_port);
+      break;
+      break;
+    }
+
     case LOGFMT_META_IDENT_USER: {
       const char *ident_user;
 
       ident_user = pr_table_get(session.notes, "mod_ident.rfc1413-ident", NULL);
       if (ident_user != NULL) {
         (on_meta)(p, ctx, logfmt_id, NULL, ident_user);
+
+      } else {
+        if (on_default != NULL) {
+          (on_default)(p, ctx, logfmt_id);
+        }
       }
 
       break;
@@ -798,6 +1037,11 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
 
       if (get_meta_transfer_secs(cmd, &transfer_secs) == 0) {
         (on_meta)(p, ctx, logfmt_id, NULL, &transfer_secs);
+
+      } else {
+        if (on_default != NULL) {
+          (on_default)(p, ctx, logfmt_id);
+        }
       }
 
       break;
@@ -826,6 +1070,11 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
 
       if (full_cmd != NULL) {
         (on_meta)(p, ctx, logfmt_id, NULL, full_cmd);
+
+      } else {
+        if (on_default != NULL) {
+          (on_default)(p, ctx, logfmt_id);
+        }
       }
 
       break;
@@ -863,6 +1112,11 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
     case LOGFMT_META_USER: {
       if (session.user != NULL) {
         (on_meta)(p, ctx, logfmt_id, NULL, session.user);
+
+      } else {
+        if (on_default != NULL) {
+          (on_default)(p, ctx, logfmt_id);
+        }
       }
 
       break;
@@ -874,6 +1128,11 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
       orig_user = pr_table_get(session.notes, "mod_auth.orig-user", NULL);
       if (orig_user != NULL) {
         (on_meta)(p, ctx, logfmt_id, NULL, orig_user);
+
+      } else {
+        if (on_default != NULL) {
+          (on_default)(p, ctx, logfmt_id);
+        }
       }
 
       break;
@@ -897,6 +1156,11 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
 
       if (res == 0) {
         (on_meta)(p, ctx, logfmt_id, NULL, &resp_num);
+
+      } else {
+        if (on_default != NULL) {
+          (on_default)(p, ctx, logfmt_id);
+        }
       }
 
       break;
@@ -905,6 +1169,11 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
     case LOGFMT_META_CLASS: {
       if (session.conn_class != NULL) {
         (on_meta)(p, ctx, logfmt_id, NULL, session.conn_class);
+
+      } else {
+        if (on_default != NULL) {
+          (on_default)(p, ctx, logfmt_id);
+        }
       }
 
       break;
@@ -916,6 +1185,11 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
       anon_pass = pr_table_get(session.notes, "mod_auth.anon-passwd", NULL);
       if (anon_pass == NULL) {
         (on_meta)(p, ctx, logfmt_id, NULL, anon_pass);
+
+      } else {
+        if (on_default != NULL) {
+          (on_default)(p, ctx, logfmt_id);
+        }
       }
 
       break;
@@ -950,6 +1224,11 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
 
       if (method != NULL) {
         (on_meta)(p, ctx, logfmt_id, NULL, method);
+
+      } else {
+        if (on_default != NULL) {
+          (on_default)(p, ctx, logfmt_id);
+        }
       }
 
       break;
@@ -961,6 +1240,11 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
       transfer_path = get_meta_transfer_path(cmd);
       if (transfer_path != NULL) {
         (on_meta)(p, ctx, logfmt_id, NULL, transfer_path);
+
+      } else {
+        if (on_default != NULL) {
+          (on_default)(p, ctx, logfmt_id);
+        }
       }
 
       break;
@@ -972,6 +1256,11 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
       dir_name = get_meta_dir_name(cmd);
       if (dir_name != NULL) {
         (on_meta)(p, ctx, logfmt_id, NULL, dir_name);
+
+      } else {
+        if (on_default != NULL) {
+          (on_default)(p, ctx, logfmt_id);
+        }
       }
 
       break;
@@ -983,6 +1272,11 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
       dir_path = get_meta_dir_path(cmd);
       if (dir_path != NULL) {
         (on_meta)(p, ctx, logfmt_id, NULL, dir_path);
+
+      } else {
+        if (on_default != NULL) {
+          (on_default)(p, ctx, logfmt_id);
+        }
       }
 
       break;
@@ -1001,6 +1295,11 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
 
       if (params != NULL) {
         (on_meta)(p, ctx, logfmt_id, NULL, params);
+
+      } else {
+        if (on_default != NULL) {
+          (on_default)(p, ctx, logfmt_id);
+        }
       }
 
       break;
@@ -1014,6 +1313,33 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
       if (res == 0 &&
           resp_msg != NULL) {
         (on_meta)(p, ctx, logfmt_id, NULL, resp_msg);
+
+      } else {
+        if (on_default != NULL) {
+          (on_default)(p, ctx, logfmt_id);
+        }
+      }
+
+      break;
+    }
+
+    case LOGFMT_META_RESPONSE_MS: {
+      const uint64_t *start_ms;
+
+      start_ms = pr_table_get(cmd->notes, "start_ms", NULL);
+      if (start_ms != NULL) {
+        uint64_t end_ms = 0;
+        double response_ms;
+
+        pr_gettimeofday_millis(&end_ms);
+
+        response_ms = end_ms - *start_ms;
+        (on_meta)(p, ctx, logfmt_id, NULL, &response_ms);
+
+      } else {
+        if (on_default) {
+          (on_default)(p, ctx, logfmt_id);
+        }
       }
 
       break;
@@ -1042,6 +1368,16 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
         rnfr_path = pr_table_get(session.notes, "mod_core.rnfr-path", NULL);
         if (rnfr_path != NULL) {
           (on_meta)(p, ctx, logfmt_id, NULL, rnfr_path);
+
+        } else {
+          if (on_default != NULL) {
+            (on_default)(p, ctx, logfmt_id);
+          }
+        }
+
+      } else {
+        if (on_default != NULL) {
+          (on_default)(p, ctx, logfmt_id);
         }
       }
 
@@ -1110,6 +1446,11 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
 
       if (reason != NULL) {
         (on_meta)(p, ctx, logfmt_id, NULL, reason);
+
+      } else {
+        if (on_default != NULL) {
+          (on_default)(p, ctx, logfmt_id);
+        }
       }
 
       break;
@@ -1143,6 +1484,11 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
 
           field_name = pstrcat(p, PR_JOT_LOGFMT_NOTE_KEY, note, NULL);
           (on_meta)(p, ctx, logfmt_id, field_name, note);
+
+        } else {
+          if (on_default != NULL) {
+            (on_default)(p, ctx, logfmt_id);
+          }
         }
       }
 
@@ -1156,6 +1502,11 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
       transfer_status = get_meta_transfer_status(cmd);
       if (transfer_status != NULL) {
         (on_meta)(p, ctx, logfmt_id, NULL, transfer_status);
+
+      } else {
+        if (on_default != NULL) {
+          (on_default)(p, ctx, logfmt_id);
+        }
       }
 
       break;
@@ -1167,6 +1518,58 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
       transfer_failure = get_meta_transfer_failure(cmd);
       if (transfer_failure != NULL) {
         (on_meta)(p, ctx, logfmt_id, NULL, transfer_failure);
+
+      } else {
+        if (on_default != NULL) {
+          (on_default)(p, ctx, logfmt_id);
+        }
+      }
+
+      break;
+    }
+
+    case LOGFMT_META_XFER_MS: {
+      if (session.xfer.p != NULL) {
+        /* Make sure that session.xfer.start_time actually has values (which
+         * is not always the case).
+         */
+        if (session.xfer.start_time.tv_sec != 0 ||
+            session.xfer.start_time.tv_usec != 0) {
+          uint64_t start_ms = 0, end_ms = 0;
+          double transfer_ms;
+
+          pr_timeval2millis(&(session.xfer.start_time), &start_ms);
+          pr_gettimeofday_millis(&end_ms);
+
+          transfer_ms = end_ms - start_ms;
+          (on_meta)(p, ctx, logfmt_id, NULL, &transfer_ms);
+
+        } else {
+          if (on_default != NULL) {
+            (on_default)(p, ctx, logfmt_id);
+          }
+        }
+
+      } else {
+        if (on_default != NULL) {
+          (on_default)(p, ctx, logfmt_id);
+        }
+      }
+
+      break;
+    }
+
+    case LOGFMT_META_XFER_TYPE: {
+      const char *transfer_type;
+
+      transfer_type = get_meta_transfer_type(cmd);
+      if (transfer_type != NULL) {
+        (on_meta)(p, ctx, logfmt_id, NULL, transfer_type);
+
+      } else {
+        if (on_default != NULL) {
+          (on_default)(p, ctx, logfmt_id);
+        }
       }
 
       break;
@@ -1219,6 +1622,11 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
     case LOGFMT_META_GROUP: {
       if (session.group != NULL) {
         (on_meta)(p, ctx, logfmt_id, NULL, session.group);
+
+      } else {
+        if (on_default != NULL) {
+          (on_default)(p, ctx, logfmt_id);
+        }
       }
 
       break;
@@ -1303,6 +1711,7 @@ int pr_jot_resolve_logfmt(pool *p, cmd_rec *cmd, pr_jot_filters_t *filters,
     unsigned char *logfmt, pr_jot_ctx_t *ctx,
     void (*on_meta)(pool *, pr_jot_ctx_t *, unsigned char, const char *,
       const void *),
+    void (*on_default)(pool *, pr_jot_ctx_t *, unsigned char),
     void (*on_other)(pool *, pr_jot_ctx_t *, unsigned char)) {
   int jottable = FALSE;
 
@@ -1335,7 +1744,7 @@ int pr_jot_resolve_logfmt(pool *p, cmd_rec *cmd, pr_jot_filters_t *filters,
     pr_signals_handle();
 
     if (*logfmt == LOGFMT_META_START) {
-      resolve_meta(p, &logfmt, ctx, cmd, on_meta);
+      resolve_meta(p, &logfmt, ctx, cmd, on_meta, on_default);
 
     } else {
       if (on_other != NULL) {
