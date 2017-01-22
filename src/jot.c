@@ -87,8 +87,13 @@ static int add_json_info(pool *p, pr_table_t *tab,
   return res;
 }
 
-pr_table_t *pr_jot_get_logfmt2json_map(pool *p) {
+pr_table_t *pr_jot_get_logfmt2json(pool *p) {
   pr_table_t *map;
+
+  if (p == NULL) {
+    errno = EINVAL;
+    return NULL;
+  }
 
   map = pr_table_alloc(p, 0);
 
@@ -258,23 +263,6 @@ void pr_jot_on_json(pool *p, pr_jot_ctx_t *ctx, unsigned char logfmt_id,
     case PR_JSON_TYPE_BOOL:
       (void) pr_json_object_set_bool(p, json, lji->json_key, *((int *) val));
       break;
-
-    default: {
-      const char *type_name;
-
-      /* Since we are a canned callback for everyone, we will log our
-       * issues via tracing.
-       */
-      type_name = pr_json_type_name(lji->json_type);
-      if (type_name != NULL) {
-        (void) pr_trace_msg(trace_channel, 4, "unsupported JSON %s type",
-          type_name);
-
-      } else {
-        (void) pr_trace_msg(trace_channel, 2, "unsupported JSON type ID %u",
-          lji->json_type);
-      }
-    }
   }
 }
 
@@ -1539,7 +1527,7 @@ static int filter_get_classes(pool *p, array_header *names,
 }
 
 static array_header *filter_get_cmd_ids(pool *p, array_header *names,
-    int *included_classes, int *excluded_classes, int opts, int flags) {
+    int *included_classes, int *excluded_classes, int rules_type, int flags) {
   register unsigned int i;
   array_header *cmd_ids;
 
@@ -1556,7 +1544,7 @@ static array_header *filter_get_cmd_ids(pool *p, array_header *names,
     if (cmd_id < 0) {
       valid = FALSE;
 
-      if (opts == PR_JOT_FILTER_OPT_COMMANDS_WITH_CLASSES) {
+      if (rules_type == PR_JOT_FILTER_TYPE_COMMANDS_WITH_CLASSES) {
         if (strcmp(name, "ALL") == 0) {
           *included_classes = CL_ALL;
           valid = TRUE;
@@ -1588,8 +1576,8 @@ static array_header *filter_get_cmd_ids(pool *p, array_header *names,
   return cmd_ids;
 }
 
-pr_jot_filters_t *pr_jot_filters_create(pool *p, const char *rules, int opts,
-    int flags) {
+pr_jot_filters_t *pr_jot_filters_create(pool *p, const char *rules,
+    int rules_type, int flags) {
   int included_classes, excluded_classes;
   pool *sub_pool, *tmp_pool;
   array_header *cmd_ids, *names;
@@ -1610,8 +1598,8 @@ pr_jot_filters_t *pr_jot_filters_create(pool *p, const char *rules, int opts,
   tmp_pool = make_sub_pool(p);
   names = filter_csv2array(tmp_pool, pstrdup(tmp_pool, rules));
 
-  switch (opts) {
-    case PR_JOT_FILTER_OPT_CLASSES: {
+  switch (rules_type) {
+    case PR_JOT_FILTER_TYPE_CLASSES: {
       int res;
 
       res = filter_get_classes(sub_pool, names, &included_classes,
@@ -1628,10 +1616,10 @@ pr_jot_filters_t *pr_jot_filters_create(pool *p, const char *rules, int opts,
       break;
     }
 
-    case PR_JOT_FILTER_OPT_COMMANDS:
-    case PR_JOT_FILTER_OPT_COMMANDS_WITH_CLASSES:
+    case PR_JOT_FILTER_TYPE_COMMANDS:
+    case PR_JOT_FILTER_TYPE_COMMANDS_WITH_CLASSES:
       cmd_ids = filter_get_cmd_ids(sub_pool, names, &included_classes,
-        &excluded_classes, opts, flags);
+        &excluded_classes, rules_type, flags);
       break;
 
     default:

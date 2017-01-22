@@ -167,7 +167,7 @@ MODRET set_redislogonevent(cmd_rec *cmd) {
 
   rules = cmd->argv[1];
   jot_filters = pr_jot_filters_create(c->pool, rules,
-    PR_JOT_FILTER_OPT_COMMANDS_WITH_CLASSES,
+    PR_JOT_FILTER_TYPE_COMMANDS_WITH_CLASSES,
     PR_JOT_FILTER_FL_ALL_INCL_ALL);
   if (jot_filters == NULL) {
     CONF_ERROR(cmd, pstrcat(cmd->tmp_pool, "unable to use events '",
@@ -301,7 +301,7 @@ static void redis_restart_ev(const void *event_data, void *user_data) {
   redis_pool = make_sub_pool(permanent_pool);
   pr_pool_tag(redis_pool, MOD_REDIS_VERSION);
 
-  jot_logfmt2json = pr_jot_get_logfmt2json_map(redis_pool);
+  jot_logfmt2json = pr_jot_get_logfmt2json(redis_pool);
 }
 
 static void redis_sess_reinit_ev(const void *event_data, void *user_data) {
@@ -344,7 +344,7 @@ static int redis_module_init(void) {
   pr_log_debug(DEBUG2, MOD_REDIS_VERSION ": using hiredis-%d.%d.%d",
     HIREDIS_MAJOR, HIREDIS_MINOR, HIREDIS_PATCH);
 
-  jot_logfmt2json = pr_jot_get_logfmt2json_map(redis_pool);
+  jot_logfmt2json = pr_jot_get_logfmt2json(redis_pool);
   if (jot_logfmt2json == NULL) {
     return -1;
   }

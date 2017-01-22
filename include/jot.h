@@ -29,12 +29,6 @@
 
 #include "conf.h"
 
-/* Jot Types */
-
-#define PR_JOT_TYPE_STRING		1
-#define PR_JOT_TYPE_NUMBER		2
-#define PR_JOT_TYPE_BOOL		3
-
 /* Jot keys for LogFormat variables, e.g. for key/value logging via JSON. */
 #define PR_JOT_LOGFMT_ANON_PASSWD_KEY	"anon_password"
 #define PR_JOT_LOGFMT_BYTES_SENT_KEY	"bytes_sent"
@@ -94,17 +88,14 @@ typedef struct {
 
 } pr_jot_ctx_t;
 
-/* XXX */
-const char *pr_jot_type_name(unsigned int jot_type);
+/* Returns table which maps LOGFMT_META_ values  to JSON keys and types. */
+pr_table_t *pr_jot_get_logfmt2json(pool *p);
 
-/* Returns table which maps LOGFMT IDs to JSON keys and types. */
-pr_table_t *pr_jot_get_logfmt2json_map(pool *p);
-
-pr_jot_filters_t *pr_jot_filters_create(pool *p, const char *rules, int opts,
-  int flags);
-#define PR_JOT_FILTER_OPT_COMMANDS_WITH_CLASSES	0
-#define PR_JOT_FILTER_OPT_COMMANDS		1
-#define PR_JOT_FILTER_OPT_CLASSES		2
+pr_jot_filters_t *pr_jot_filters_create(pool *p, const char *rules,
+  int rules_type, int flags);
+#define PR_JOT_FILTER_TYPE_COMMANDS_WITH_CLASSES	0
+#define PR_JOT_FILTER_TYPE_COMMANDS			1
+#define PR_JOT_FILTER_TYPE_CLASSES			2
 
 /* Use this flag to indicate that an "ALL" name means _everything_.  By
  * default, the CL_ALL logging class does NOT include all classes, due to

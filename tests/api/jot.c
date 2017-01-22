@@ -25,6 +25,7 @@
 /* Jot API tests. */
 
 #include "tests.h"
+#include "json.h"
 
 static pool *p = NULL;
 
@@ -51,7 +52,225 @@ static void tear_down(void) {
 
 /* Tests */
 
-START_TEST (jot_do_test) {
+static void assert_jot_class_filter(pool *p, const char *class_name) {
+  const char *rules;
+
+  rules = class_name;
+
+  mark_point();
+  filters = pr_jot_filters_create(p, rules, PR_JOT_FILTER_TYPE_CLASSES, 0);
+  fail_unless(filters != NULL, "Failed to create filters from '%s': %s",
+    rules, strerror(errno));
+  (void) pr_jot_filters_destroy(filters);
+
+  rules = pstrcat(p, "!", class_name);
+
+  mark_point();
+  filters = pr_jot_filters_create(p, rules, PR_JOT_FILTER_TYPE_CLASSES, 0);
+  fail_unless(filters != NULL, "Failed to create filters from '%s': %s",
+    rules, strerror(errno));
+  (void) pr_jot_filters_destroy(filters);
+}
+
+START_TEST (jot_filters_create_test) {
+  pr_jot_filters_t *filters;
+  const char *rules;
+
+  mark_point();
+  filters = pr_jot_filters_create(NULL, NULL, 0, 0);
+  fail_unless(filters == NULL, "Failed to handle null pool");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  mark_point();
+  filters = pr_jot_filters_create(p, NULL, 0, 0);
+  fail_unless(filters == NULL, "Failed to handle null rules");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  rules = "foo";
+
+  mark_point();
+  filters = pr_jot_filters_create(p, rules, -1, 0);
+  fail_unless(filters == NULL, "Failed to handle invalid rules type");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  /* Class rules */
+
+  mark_point();
+  filters = pr_jot_filters_create(p, rules, PR_JOT_FILTER_TYPE_CLASSES, 0);
+  fail_unless(filters == NULL, "Failed to handle invalid class name '%s'",
+    rules);
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  assert_jot_class_filter(p, "NONE");
+  assert_jot_class_filter(p, "ALL");
+  assert_jot_class_filter(p, "AUTH");
+  assert_jot_class_filter(p, "INFO");
+  assert_jot_class_filter(p, "DIRS");
+  assert_jot_class_filter(p, "READ");
+  assert_jot_class_filter(p, "WRITE");
+  assert_jot_class_filter(p, "SEC");
+  assert_jot_class_filter(p, "SECURE");
+  assert_jot_class_filter(p, "CONNECT");
+  assert_jot_class_filter(p, "EXIT");
+  assert_jot_class_filter(p, "DISCONNECT");
+  assert_jot_class_filter(p, "SSH");
+  assert_jot_class_filter(p, "SFTP");
+
+  rules = "AUTH,!INFO";
+
+  mark_point();
+  filters = pr_jot_filters_create(p, rules, PR_JOT_FILTER_TYPE_CLASSES, 0);
+  fail_unless(filters != NULL, "Failed to create filters from '%s': %s",
+    rules, strerror(errno));
+  (void) pr_jot_filters_destroy(filters);
+
+  rules = "!INFO|AUTH";
+
+  mark_point();
+  filters = pr_jot_filters_create(p, rules, PR_JOT_FILTER_TYPE_CLASSES, 0);
+  fail_unless(filters != NULL, "Failed to create filters from '%s': %s",
+    rules, strerror(errno));
+  (void) pr_jot_filters_destroy(filters);
+
+  /* Command rules */
+
+  rules = "FOO,BAR";
+  mark_point();
+  filters = pr_jot_filters_create(p, rules, PR_JOT_FILTER_TYPE_COMMANDS, 0);
+  fail_unless(filters != NULL, "Failed to create filters from '%s': %s",
+    rules, strerror(errno));
+  (void) pr_jot_filters_destroy(filters);
+
+  rules = "APPE,RETR,STOR,STOU";
+  mark_point();
+  filters = pr_jot_filters_create(p, rules, PR_JOT_FILTER_TYPE_COMMANDS, 0);
+  fail_unless(filters != NULL, "Failed to create filters from '%s': %s",
+    rules, strerror(errno));
+  (void) pr_jot_filters_destroy(filters);
+
+  /* Rules with commands and classes */
+
+  rules = "CONNECT,RETR,STOR,DISCONNECT";
+  mark_point();
+  filters = pr_jot_filters_create(p, rules,
+    PR_JOT_FILTER_TYPE_COMMANDS_WITH_CLASSES, 0);
+  fail_unless(filters != NULL, "Failed to create filters from '%s': %s",
+    rules, strerror(errno));
+  (void) pr_jot_filters_destroy(filters);
+
+  rules = "ALL";
+  mark_point();
+  filters = pr_jot_filters_create(p, rules,
+    PR_JOT_FILTER_TYPE_COMMANDS_WITH_CLASSES, 0);
+  fail_unless(filters != NULL, "Failed to create filters from '%s': %s",
+    rules, strerror(errno));
+  (void) pr_jot_filters_destroy(filters);
+
+  /* Flags */
+
+  rules = "ALL";
+  mark_point();
+  filters = pr_jot_filters_create(p, rules,
+    PR_JOT_FILTER_TYPE_COMMANDS_WITH_CLASSES, PR_JOT_FILTER_FL_ALL_INCL_ALL);
+  fail_unless(filters != NULL, "Failed to create filters from '%s': %s",
+    rules, strerror(errno));
+  (void) pr_jot_filters_destroy(filters);
+}
+END_TEST
+
+START_TEST (jot_filters_destroy_test) {
+  int res;
+  pr_jot_filters_t *filters;
+
+  mark_point();
+  res = pr_jot_filters_destroy(NULL);
+  fail_unless(res < 0, "Failed to handle null filters");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  filters = pr_jot_filters_create(p, "NONE", PR_JOT_FILTER_OPT_CLASSES, 0);
+
+  mark_point();
+  res = pr_jot_filters_destroy(filters);
+  fail_unless(res == 0, "Failed to destroy filters: %s", strerror(errno));
+}
+END_TEST
+
+START_TEST (jot_resolve_logfmt_test) {
+}
+END_TEST
+
+START_TEST (jot_on_json_test) {
+  pr_jot_ctx_t *ctx;
+  pr_json_object_t *json;
+  pr_table_t *logfmt2json;
+  double num;
+  int truth;
+  const char *text;
+
+  mark_point();
+  pr_jot_on_json(NULL, NULL, 0, NULL, NULL);
+
+  mark_point();
+  pr_jot_on_json(p, NULL, 0, NULL, NULL);
+
+  ctx = pcalloc(p, sizeof(pr_jot_ctx_t));
+
+  mark_point();
+  pr_jot_on_json(p, ctx, 0, NULL, NULL);
+
+  mark_point();
+  pr_jot_on_json(p, ctx, 0, NULL, &num);
+
+  json = pr_json_object_alloc(p);
+  ctx->log = json;
+
+  mark_point();
+  pr_jot_on_json(p, ctx, 0, NULL, &num);
+
+  ctx->user_data = pr_table_alloc(p);
+
+  mark_point();
+  pr_jot_on_json(p, ctx, 0, NULL, &num);
+
+  ctx->user_data = pr_jot_get_logfmt2json(p);
+
+  mark_point();
+  truth = FALSE;
+  pr_jot_on_json(p, ctx, LOGFMT_META_CONNECT, NULL, &truth);
+
+  mark_point();
+  num = 2476;
+  pr_jot_on_json(p, ctx, LOGFMT_META_PID, NULL, &num);
+
+  mark_point();
+  text = "lorem ipsum";
+  pr_jot_on_json(p, ctx, LOGFMT_META_IDENT_USER, NULL, text);
+
+  mark_point();
+  text = "alef bet vet";
+  pr_jot_on_json(p, ctx, LOGFMT_META_USER, "USER_KEY", text);
+
+  (void) pr_json_object_free(json);
+}
+END_TEST
+
+START_TEST (jot_get_logfmt2json_test) {
+  pr_table_t *res;
+
+  mark_point();
+  res = pr_jot_get_logfmt2json(NULL);
+  fail_unless(res == NULL, "Failed to handle null pool");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  mark_point();
+  res = pr_jot_get_logfmt2json(p);
+  fail_unless(res != NULL, "Failed to get map: %s", strerror(errno));
 }
 END_TEST
 
@@ -64,7 +283,11 @@ Suite *tests_get_jot_suite(void) {
 
   tcase_add_checked_fixture(testcase, set_up, tear_down);
 
-  tcase_add_test(testcase, jot_do_test);
+  tcase_add_test(testcase, jot_filters_create_test);
+  tcase_add_test(testcase, jot_filters_destroy_test);
+  tcase_add_test(testcase, jot_resolve_logfmt_test);
+  tcase_add_test(testcase, jot_on_json_test);
+  tcase_add_test(testcase, jot_get_logfmt2json_test);
 
   suite_add_tcase(suite, testcase);
   return suite;
