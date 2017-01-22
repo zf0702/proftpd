@@ -2,7 +2,7 @@
  * ProFTPD - FTP server daemon
  * Copyright (c) 1997, 1998 Public Flood Software
  * Copyright (c) 1999, 2000 MacGyver aka Habeeb J. Dihu <macgyver@tos.net>
- * Copyright (c) 2001-2016 The ProFTPD Project team
+ * Copyright (c) 2001-2017 The ProFTPD Project team
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,6 +29,7 @@
 #include "conf.h"
 #include "privs.h"
 #include "mod_log.h"
+#include "jot.h"
 
 module log_module;
 
@@ -614,13 +615,14 @@ static int parse_classes(char *s, int *incl_classes, int *excl_classes) {
         incl |= CL_SEC;
       }
 
-    } else if (strcasecmp(s, "EXIT") == 0) {
+    } else if (strcasecmp(s, "EXIT") == 0 ||
+               strcasecmp(s, "DISCONNECT") == 0) {
       if (exclude) {
-        incl &= ~CL_EXIT;
-        excl |= CL_EXIT;
+        incl &= ~CL_DISCONNECT;
+        excl |= CL_DISCONNECT;
 
       } else {
-        incl |= CL_EXIT;
+        incl |= CL_DISCONNECT;
       }
 
     } else if (strcasecmp(s, "SSH") == 0) {
@@ -2121,8 +2123,8 @@ MODRET log_any(cmd_rec *cmd) {
 static void log_exit_ev(const void *event_data, void *user_data) {
   cmd_rec *cmd;
 
-  cmd = pr_cmd_alloc(session.pool, 1, "EXIT");
-  cmd->cmd_class |= CL_EXIT;
+  cmd = pr_cmd_alloc(session.pool, 1, pstrdup(session.pool, "EXIT"));
+  cmd->cmd_class |= CL_DISCONNECT;
 
   (void) log_any(cmd);
 }
@@ -2363,6 +2365,8 @@ loop_extendedlogs:
 MODRET log_pre_dele(cmd_rec *cmd) {
   char *path;
 
+  jot_set_deleted_filesz(0);
+/* XXX */
   log_dele_filesz = 0;
 
   path = dir_canonical_path(cmd->tmp_pool,
@@ -2375,6 +2379,8 @@ MODRET log_pre_dele(cmd_rec *cmd) {
      */
     pr_fs_clear_cache2(path);
     if (pr_fsio_stat(path, &st) == 0) {
+      jot_set_deleted_filesz(st.st_size);
+/* XXX */
       log_dele_filesz = st.st_size;
     }
   }
@@ -2457,6 +2463,8 @@ MODRET log_post_pass(cmd_rec *cmd) {
 }
 
 /* Open all the log files */
+static int dispatched_connect = FALSE;
+
 static int log_sess_init(void) {
   char *serverlog_name = NULL;
   logfile_t *lf = NULL;
@@ -2596,6 +2604,21 @@ static int log_sess_init(void) {
   pr_event_register(&log_module, "core.exit", log_exit_ev, NULL);
   pr_event_register(&log_module, "core.timeout-stalled", log_xfer_stalled_ev,
     NULL);
+
+  /* Have we send our CONNECT event yet? */
+  if (dispatched_connect == FALSE) {
+    pool *tmp_pool;
+    cmd_rec *cmd;
+
+    tmp_pool = make_sub_pool(session.pool);
+    cmd = pr_cmd_alloc(tmp_pool, 1, pstrdup(tmp_pool, "CONNECT"));
+    cmd->cmd_class |= CL_CONNECT;
+    (void) pr_cmd_dispatch_phase(cmd, LOG_CMD,
+      PR_CMD_DISPATCH_FL_CLEAR_RESPONSE);
+    destroy_pool(tmp_pool);
+
+    dispatched_connect = TRUE;
+  }
 
   return 0;
 }

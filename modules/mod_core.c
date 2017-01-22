@@ -6666,8 +6666,9 @@ static int core_sess_init(void) {
 
   /* Check for configured SetEnvs. */
   c = find_config(main_server->conf, CONF_PARAM, "SetEnv", FALSE);
+  while (c != NULL) {
+    pr_signals_handle();
 
-  while (c) {
     if (pr_env_set(session.pool, c->argv[0], c->argv[1]) < 0) {
       pr_log_debug(DEBUG1, "unable to set environment variable '%s': %s",
         (char *) c->argv[0], strerror(errno));
@@ -6681,8 +6682,9 @@ static int core_sess_init(void) {
 
   /* Check for configured UnsetEnvs. */
   c = find_config(main_server->conf, CONF_PARAM, "UnsetEnv", FALSE);
+  while (c != NULL) {
+    pr_signals_handle();
 
-  while (c) {
     if (pr_env_unset(session.pool, c->argv[0]) < 0) {
       pr_log_debug(DEBUG1, "unable to unset environment variable '%s': %s",
         (char *) c->argv[0], strerror(errno));
@@ -6863,7 +6865,7 @@ static int core_sess_init(void) {
 
   /* Check for any ProcessTitles setting. */
   c = find_config(main_server->conf, CONF_PARAM, "ProcessTitles", FALSE);
-  if (c) {
+  if (c != NULL) {
     char *verbosity;
  
     verbosity = c->argv[0];
