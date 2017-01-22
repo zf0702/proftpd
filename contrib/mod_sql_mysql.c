@@ -1730,7 +1730,7 @@ MODRET cmd_checkauth(cmd_rec *cmd) {
   conn_entry_t *entry = NULL;
   char scrambled[256] = {'\0'};
   char *plaintxt = NULL, *hashed = NULL;
-  size_t plaintxt_len = 0, hashed_len = 0, scrambled_len = 0;
+  size_t hashed_len = 0, scrambled_len = 0;
   int success = 0;
 
   sql_log(DEBUG_FUNC, "%s", "entering \tmysql cmd_checkauth");
