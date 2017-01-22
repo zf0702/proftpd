@@ -46,7 +46,6 @@ static const char *trace_channel = "jot";
 struct logfmt_json_info {
   unsigned int json_type;
   const char *json_key;
-  size_t json_keylen;
 };
 
 /* Key comparison for the ID/key table. */
@@ -68,11 +67,10 @@ static unsigned int logfmt_json_keyhash(const void *k, size_t ksz) {
   return res;
 }
 
-static int add_json_info(pool *p, pr_table_t *tab,
-    unsigned char logfmt_id, const char *json_key, unsigned int json_type) {
+static void add_json_info(pool *p, pr_table_t *tab, unsigned char logfmt_id,
+    const char *json_key, unsigned int json_type) {
   unsigned char *k;
   struct logfmt_json_info *lji;
-  int res;
 
   k = palloc(p, sizeof(unsigned char));
   *k = logfmt_id;
@@ -80,11 +78,9 @@ static int add_json_info(pool *p, pr_table_t *tab,
   lji = palloc(p, sizeof(struct logfmt_json_info));
   lji->json_type = json_type;
   lji->json_key = json_key;
-  lji->json_keylen = strlen(json_key) + 1;
 
-  res = pr_table_kadd(tab, (const void *) k, sizeof(unsigned char),
+  (void) pr_table_kadd(tab, (const void *) k, sizeof(unsigned char),
     lji, sizeof(struct logfmt_json_info *));
-  return res;
 }
 
 pr_table_t *pr_jot_get_logfmt2json(pool *p) {
@@ -107,8 +103,6 @@ pr_table_t *pr_jot_get_logfmt2json(pool *p) {
    * for use e.g. as JSON object member names.
    */
 
-  add_json_info(p, map, LOGFMT_META_ANON_PASS, PR_JOT_LOGFMT_ANON_PASSWD_KEY,
-    PR_JSON_TYPE_STRING);
   add_json_info(p, map, LOGFMT_META_BYTES_SENT, PR_JOT_LOGFMT_BYTES_SENT_KEY,
     PR_JSON_TYPE_NUMBER);
   add_json_info(p, map, LOGFMT_META_FILENAME, PR_JOT_LOGFMT_FILENAME_KEY,
@@ -845,9 +839,7 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
         (on_meta)(p, ctx, logfmt_id, NULL, basename);
 
       } else {
-        if (on_default != NULL) {
-          (on_default)(p, ctx, logfmt_id);
-        }
+        (on_default)(p, ctx, logfmt_id);
       }
 
       break;
@@ -870,9 +862,7 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
         (on_meta)(p, ctx, logfmt_id, NULL, &bytes_sent);
 
       } else {
-        if (on_default != NULL) {
-          (on_default)(p, ctx, logfmt_id);
-        }
+        (on_default)(p, ctx, logfmt_id);
       }
 
       break;
@@ -886,9 +876,7 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
         (on_meta)(p, ctx, logfmt_id, NULL, filename);
 
       } else {
-        if (on_default != NULL) {
-          (on_default)(p, ctx, logfmt_id);
-        }
+        (on_default)(p, ctx, logfmt_id);
       }
 
       break;
@@ -905,9 +893,7 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
         (on_meta)(p, ctx, logfmt_id, NULL, &file_offset);
 
       } else {
-        if (on_default) {
-          (on_default)(p, ctx, logfmt_id);
-        }
+        (on_default)(p, ctx, logfmt_id);
       }
 
       break;
@@ -924,9 +910,7 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
         (on_meta)(p, ctx, logfmt_id, NULL, &file_size);
 
       } else {
-        if (on_default) {
-          (on_default)(p, ctx, logfmt_id);
-        }
+        (on_default)(p, ctx, logfmt_id);
       }
     }
 
@@ -949,9 +933,7 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
           (on_meta)(p, ctx, logfmt_id, field_name, env);
 
         } else {
-          if (on_default != NULL) {
-            (on_default)(p, ctx, logfmt_id);
-          }
+          (on_default)(p, ctx, logfmt_id);
         }
       }
 
@@ -992,9 +974,7 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
         (on_meta)(p, ctx, logfmt_id, NULL, ident_user);
 
       } else {
-        if (on_default != NULL) {
-          (on_default)(p, ctx, logfmt_id);
-        }
+        (on_default)(p, ctx, logfmt_id);
       }
 
       break;
@@ -1008,6 +988,9 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
       break;
     }
 
+    /* XXX Note: this implementation differs from that in mod_log for
+     * META_TIME...
+     */
     case LOGFMT_META_TIME: {
       char ts[128], *time_fmt = "%Y-%m-%d %H:%M:%S %z";
       struct tm *tm;
@@ -1039,9 +1022,7 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
         (on_meta)(p, ctx, logfmt_id, NULL, &transfer_secs);
 
       } else {
-        if (on_default != NULL) {
-          (on_default)(p, ctx, logfmt_id);
-        }
+        (on_default)(p, ctx, logfmt_id);
       }
 
       break;
@@ -1072,9 +1053,7 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
         (on_meta)(p, ctx, logfmt_id, NULL, full_cmd);
 
       } else {
-        if (on_default != NULL) {
-          (on_default)(p, ctx, logfmt_id);
-        }
+        (on_default)(p, ctx, logfmt_id);
       }
 
       break;
@@ -1114,9 +1093,7 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
         (on_meta)(p, ctx, logfmt_id, NULL, session.user);
 
       } else {
-        if (on_default != NULL) {
-          (on_default)(p, ctx, logfmt_id);
-        }
+        (on_default)(p, ctx, logfmt_id);
       }
 
       break;
@@ -1130,9 +1107,7 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
         (on_meta)(p, ctx, logfmt_id, NULL, orig_user);
 
       } else {
-        if (on_default != NULL) {
-          (on_default)(p, ctx, logfmt_id);
-        }
+        (on_default)(p, ctx, logfmt_id);
       }
 
       break;
@@ -1158,9 +1133,7 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
         (on_meta)(p, ctx, logfmt_id, NULL, &resp_num);
 
       } else {
-        if (on_default != NULL) {
-          (on_default)(p, ctx, logfmt_id);
-        }
+        (on_default)(p, ctx, logfmt_id);
       }
 
       break;
@@ -1171,9 +1144,7 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
         (on_meta)(p, ctx, logfmt_id, NULL, session.conn_class);
 
       } else {
-        if (on_default != NULL) {
-          (on_default)(p, ctx, logfmt_id);
-        }
+        (on_default)(p, ctx, logfmt_id);
       }
 
       break;
@@ -1187,9 +1158,7 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
         (on_meta)(p, ctx, logfmt_id, NULL, anon_pass);
 
       } else {
-        if (on_default != NULL) {
-          (on_default)(p, ctx, logfmt_id);
-        }
+        (on_default)(p, ctx, logfmt_id);
       }
 
       break;
@@ -1226,9 +1195,7 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
         (on_meta)(p, ctx, logfmt_id, NULL, method);
 
       } else {
-        if (on_default != NULL) {
-          (on_default)(p, ctx, logfmt_id);
-        }
+        (on_default)(p, ctx, logfmt_id);
       }
 
       break;
@@ -1242,9 +1209,7 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
         (on_meta)(p, ctx, logfmt_id, NULL, transfer_path);
 
       } else {
-        if (on_default != NULL) {
-          (on_default)(p, ctx, logfmt_id);
-        }
+        (on_default)(p, ctx, logfmt_id);
       }
 
       break;
@@ -1258,9 +1223,7 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
         (on_meta)(p, ctx, logfmt_id, NULL, dir_name);
 
       } else {
-        if (on_default != NULL) {
-          (on_default)(p, ctx, logfmt_id);
-        }
+        (on_default)(p, ctx, logfmt_id);
       }
 
       break;
@@ -1274,9 +1237,7 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
         (on_meta)(p, ctx, logfmt_id, NULL, dir_path);
 
       } else {
-        if (on_default != NULL) {
-          (on_default)(p, ctx, logfmt_id);
-        }
+        (on_default)(p, ctx, logfmt_id);
       }
 
       break;
@@ -1297,9 +1258,7 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
         (on_meta)(p, ctx, logfmt_id, NULL, params);
 
       } else {
-        if (on_default != NULL) {
-          (on_default)(p, ctx, logfmt_id);
-        }
+        (on_default)(p, ctx, logfmt_id);
       }
 
       break;
@@ -1315,9 +1274,7 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
         (on_meta)(p, ctx, logfmt_id, NULL, resp_msg);
 
       } else {
-        if (on_default != NULL) {
-          (on_default)(p, ctx, logfmt_id);
-        }
+        (on_default)(p, ctx, logfmt_id);
       }
 
       break;
@@ -1337,9 +1294,7 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
         (on_meta)(p, ctx, logfmt_id, NULL, &response_ms);
 
       } else {
-        if (on_default) {
-          (on_default)(p, ctx, logfmt_id);
-        }
+        (on_default)(p, ctx, logfmt_id);
       }
 
       break;
@@ -1370,15 +1325,11 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
           (on_meta)(p, ctx, logfmt_id, NULL, rnfr_path);
 
         } else {
-          if (on_default != NULL) {
-            (on_default)(p, ctx, logfmt_id);
-          }
+          (on_default)(p, ctx, logfmt_id);
         }
 
       } else {
-        if (on_default != NULL) {
-          (on_default)(p, ctx, logfmt_id);
-        }
+        (on_default)(p, ctx, logfmt_id);
       }
 
       break;
@@ -1448,9 +1399,7 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
         (on_meta)(p, ctx, logfmt_id, NULL, reason);
 
       } else {
-        if (on_default != NULL) {
-          (on_default)(p, ctx, logfmt_id);
-        }
+        (on_default)(p, ctx, logfmt_id);
       }
 
       break;
@@ -1486,9 +1435,7 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
           (on_meta)(p, ctx, logfmt_id, field_name, note);
 
         } else {
-          if (on_default != NULL) {
-            (on_default)(p, ctx, logfmt_id);
-          }
+          (on_default)(p, ctx, logfmt_id);
         }
       }
 
@@ -1504,9 +1451,7 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
         (on_meta)(p, ctx, logfmt_id, NULL, transfer_status);
 
       } else {
-        if (on_default != NULL) {
-          (on_default)(p, ctx, logfmt_id);
-        }
+        (on_default)(p, ctx, logfmt_id);
       }
 
       break;
@@ -1520,9 +1465,7 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
         (on_meta)(p, ctx, logfmt_id, NULL, transfer_failure);
 
       } else {
-        if (on_default != NULL) {
-          (on_default)(p, ctx, logfmt_id);
-        }
+        (on_default)(p, ctx, logfmt_id);
       }
 
       break;
@@ -1545,15 +1488,11 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
           (on_meta)(p, ctx, logfmt_id, NULL, &transfer_ms);
 
         } else {
-          if (on_default != NULL) {
-            (on_default)(p, ctx, logfmt_id);
-          }
+          (on_default)(p, ctx, logfmt_id);
         }
 
       } else {
-        if (on_default != NULL) {
-          (on_default)(p, ctx, logfmt_id);
-        }
+        (on_default)(p, ctx, logfmt_id);
       }
 
       break;
@@ -1567,9 +1506,7 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
         (on_meta)(p, ctx, logfmt_id, NULL, transfer_type);
 
       } else {
-        if (on_default != NULL) {
-          (on_default)(p, ctx, logfmt_id);
-        }
+        (on_default)(p, ctx, logfmt_id);
       }
 
       break;
@@ -1624,9 +1561,7 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
         (on_meta)(p, ctx, logfmt_id, NULL, session.group);
 
       } else {
-        if (on_default != NULL) {
-          (on_default)(p, ctx, logfmt_id);
-        }
+        (on_default)(p, ctx, logfmt_id);
       }
 
       break;
@@ -1707,6 +1642,12 @@ static int is_jottable(pool *p, cmd_rec *cmd, pr_jot_filters_t *filters) {
   return jottable;
 }
 
+static void jot_default(pool *p, pr_jot_ctx_t *ctx, unsigned char meta) {
+}
+
+static void jot_other(pool *p, pr_jot_ctx_t *ctx, unsigned char ch) {
+}
+
 int pr_jot_resolve_logfmt(pool *p, cmd_rec *cmd, pr_jot_filters_t *filters,
     unsigned char *logfmt, pr_jot_ctx_t *ctx,
     void (*on_meta)(pool *, pr_jot_ctx_t *, unsigned char, const char *,
@@ -1721,6 +1662,14 @@ int pr_jot_resolve_logfmt(pool *p, cmd_rec *cmd, pr_jot_filters_t *filters,
       on_meta == NULL) {
     errno = EINVAL;
     return -1;
+  }
+
+  if (on_default == NULL) {
+    on_default = jot_default;
+  }
+
+  if (on_other == NULL) {
+    on_other = jot_other;
   }
 
   jottable = is_jottable(p, cmd, filters);
@@ -1747,10 +1696,7 @@ int pr_jot_resolve_logfmt(pool *p, cmd_rec *cmd, pr_jot_filters_t *filters,
       resolve_meta(p, &logfmt, ctx, cmd, on_meta, on_default);
 
     } else {
-      if (on_other != NULL) {
-        (on_other)(p, ctx, *logfmt);
-      }
-
+      (on_other)(p, ctx, *logfmt);
       logfmt++;
     }
   }
@@ -1758,28 +1704,54 @@ int pr_jot_resolve_logfmt(pool *p, cmd_rec *cmd, pr_jot_filters_t *filters,
   return 0;
 }
 
-/* XXX Would be nice to a pr_str_csv2array() function */
-static array_header *filter_csv2array(pool *p, char *csv) {
+/* XXX Would be nice to a pr_str_text2array() function */
+static array_header *filter_text2array(pool *p, char *text) {
+  char delim, *ptr;
   array_header *names;
-  char *ptr, *name;
+  size_t text_len;
 
   names = make_array(p, 1, sizeof(char *));
+  text_len = strlen(text);
 
-  ptr = csv;
-  name = pr_str_get_word(&ptr, 0);
-  while (name != NULL) {
+  if (text_len == 0) {
+    return names;
+  }
+
+  /* What delimiter to use?  By default, we will assume CSV, and thus use
+   * a comma.  For backward compatibility, we also support pipes; first one
+   * seen wins.
+   */
+  delim = ',';
+  if (memchr(text, '|', text_len) != NULL) {
+    delim = '|';
+  }
+
+  ptr = memchr(text, delim, text_len);
+  while (ptr != NULL) {
+    char *name;
+    size_t name_len;
+
     pr_signals_handle();
 
-    *((char **) push_array(names)) = pstrdup(p, name);
+    name_len = ptr - text;
 
-    /* Skip commas and pipes. */
-    while (*ptr == ',' ||
-           *ptr == '|') {
-      ptr++;
+    name = palloc(p, name_len + 1);
+    memcpy(name, text, name_len);
+    name[name_len] = '\0';
+    *((const char **) push_array(names)) = name;
+
+    text = ++ptr;
+
+    /* Include one byte for the comma character being skipped over. */
+    text_len = text_len - name_len - 1;
+
+    if (text_len == 0) {
+      break;
     }
 
-    name = pr_str_get_word(&ptr, 0);
+    ptr = memchr(text, delim, text_len);
   }
+  *((char **) push_array(names)) = pstrdup(p, text);
 
   return names;
 }
@@ -2005,7 +1977,7 @@ pr_jot_filters_t *pr_jot_filters_create(pool *p, const char *rules,
   pr_pool_tag(sub_pool, "Jot Filters pool");
 
   tmp_pool = make_sub_pool(p);
-  names = filter_csv2array(tmp_pool, pstrdup(tmp_pool, rules));
+  names = filter_text2array(tmp_pool, pstrdup(tmp_pool, rules));
 
   switch (rules_type) {
     case PR_JOT_FILTER_TYPE_CLASSES: {
