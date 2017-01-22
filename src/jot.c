@@ -102,81 +102,93 @@ pr_table_t *pr_jot_get_logfmt2json_map(pool *p) {
    * for use e.g. as JSON object member names.
    */
 
-  /* XXX NOTE: These names should become named constants in e.g. the logfmt.h
-   * header, for programmatic use.
-   */
-  add_json_info(p, map, LOGFMT_META_BYTES_SENT, "bytes_sent",
+  add_json_info(p, map, LOGFMT_META_BYTES_SENT, PR_JOT_LOGFMT_BYTES_SENT_KEY,
     PR_JSON_TYPE_NUMBER);
-  add_json_info(p, map, LOGFMT_META_FILENAME, "file", PR_JSON_TYPE_STRING);
-  add_json_info(p, map, LOGFMT_META_ENV_VAR, PR_JOT_LOGFMT_ENV_VAR_NAME,
+  add_json_info(p, map, LOGFMT_META_FILENAME, PR_JOT_LOGFMT_FILENAME_KEY,
     PR_JSON_TYPE_STRING);
-  add_json_info(p, map, LOGFMT_META_REMOTE_HOST, "remote_dns",
+  add_json_info(p, map, LOGFMT_META_ENV_VAR, PR_JOT_LOGFMT_ENV_VAR_KEY,
     PR_JSON_TYPE_STRING);
-  add_json_info(p, map, LOGFMT_META_REMOTE_IP, "remote_ip",
+  add_json_info(p, map, LOGFMT_META_REMOTE_HOST, PR_JOT_LOGFMT_REMOTE_HOST_KEY,
     PR_JSON_TYPE_STRING);
-  add_json_info(p, map, LOGFMT_META_IDENT_USER, "identd_user",
+  add_json_info(p, map, LOGFMT_META_REMOTE_IP, PR_JOT_LOGFMT_REMOTE_IP_KEY,
     PR_JSON_TYPE_STRING);
-  add_json_info(p, map, LOGFMT_META_PID, "pid", PR_JSON_TYPE_NUMBER);
-  add_json_info(p, map, LOGFMT_META_TIME, "local_time", PR_JSON_TYPE_STRING);
-  add_json_info(p, map, LOGFMT_META_SECONDS, "transfer_secs",
+  add_json_info(p, map, LOGFMT_META_IDENT_USER, PR_JOT_LOGFMT_IDENT_USER_KEY,
+    PR_JSON_TYPE_STRING);
+  add_json_info(p, map, LOGFMT_META_PID, PR_JOT_LOGFMT_PID_KEY,
     PR_JSON_TYPE_NUMBER);
-  add_json_info(p, map, LOGFMT_META_COMMAND, "raw_command",
+  add_json_info(p, map, LOGFMT_META_TIME, PR_JOT_LOGFMT_TIME_KEY,
     PR_JSON_TYPE_STRING);
-  add_json_info(p, map, LOGFMT_META_LOCAL_NAME, "server_name",
-    PR_JSON_TYPE_STRING);
-  add_json_info(p, map, LOGFMT_META_LOCAL_PORT, "local_port",
+  add_json_info(p, map, LOGFMT_META_SECONDS, PR_JOT_LOGFMT_SECONDS_KEY,
     PR_JSON_TYPE_NUMBER);
-  add_json_info(p, map, LOGFMT_META_LOCAL_IP, "local_ip", PR_JSON_TYPE_STRING);
-  add_json_info(p, map, LOGFMT_META_LOCAL_FQDN, "server_dns",
+  add_json_info(p, map, LOGFMT_META_COMMAND, PR_JOT_LOGFMT_COMMAND_KEY,
     PR_JSON_TYPE_STRING);
-  add_json_info(p, map, LOGFMT_META_USER, "user", PR_JSON_TYPE_STRING);
-  add_json_info(p, map, LOGFMT_META_ORIGINAL_USER, "original_user",
+  add_json_info(p, map, LOGFMT_META_LOCAL_NAME, PR_JOT_LOGFMT_LOCAL_NAME_KEY,
     PR_JSON_TYPE_STRING);
-  add_json_info(p, map, LOGFMT_META_RESPONSE_CODE, "response_code",
+  add_json_info(p, map, LOGFMT_META_LOCAL_PORT, PR_JOT_LOGFMT_LOCAL_PORT_KEY,
     PR_JSON_TYPE_NUMBER);
-  add_json_info(p, map, LOGFMT_META_CLASS, "connection_class",
+  add_json_info(p, map, LOGFMT_META_LOCAL_IP, PR_JOT_LOGFMT_LOCAL_IP_KEY,
     PR_JSON_TYPE_STRING);
-  add_json_info(p, map, LOGFMT_META_ANON_PASS, "anon_password",
+  add_json_info(p, map, LOGFMT_META_LOCAL_FQDN, PR_JOT_LOGFMT_LOCAL_FQDN_KEY,
     PR_JSON_TYPE_STRING);
-  add_json_info(p, map, LOGFMT_META_METHOD, "command", PR_JSON_TYPE_STRING);
-  add_json_info(p, map, LOGFMT_META_XFER_PATH, "transfer_path",
+  add_json_info(p, map, LOGFMT_META_USER, PR_JOT_LOGFMT_USER_KEY,
     PR_JSON_TYPE_STRING);
-  add_json_info(p, map, LOGFMT_META_DIR_NAME, "dir_name", PR_JSON_TYPE_STRING);
-  add_json_info(p, map, LOGFMT_META_DIR_PATH, "dir_path", PR_JSON_TYPE_STRING);
-  add_json_info(p, map, LOGFMT_META_CMD_PARAMS, "command_params",
+  add_json_info(p, map, LOGFMT_META_ORIGINAL_USER, PR_JOT_LOGFMT_ORIG_USER_KEY,
     PR_JSON_TYPE_STRING);
-  add_json_info(p, map, LOGFMT_META_RESPONSE_STR, "response_msg",
+  add_json_info(p, map, LOGFMT_META_RESPONSE_CODE,
+    PR_JOT_LOGFMT_RESPONSE_CODE_KEY, PR_JSON_TYPE_NUMBER);
+  add_json_info(p, map, LOGFMT_META_CLASS, PR_JOT_LOGFMT_CLASS_KEY,
     PR_JSON_TYPE_STRING);
-  add_json_info(p, map, LOGFMT_META_PROTOCOL, "protocol", PR_JSON_TYPE_STRING);
-  add_json_info(p, map, LOGFMT_META_VERSION, "server_version",
+  add_json_info(p, map, LOGFMT_META_ANON_PASS, PR_JOT_LOGFMT_ANON_PASSWD_KEY,
     PR_JSON_TYPE_STRING);
-  add_json_info(p, map, LOGFMT_META_RENAME_FROM, "rename_from",
+  add_json_info(p, map, LOGFMT_META_METHOD, PR_JOT_LOGFMT_METHOD_KEY,
     PR_JSON_TYPE_STRING);
-  add_json_info(p, map, LOGFMT_META_FILE_MODIFIED, "file_modified",
+  add_json_info(p, map, LOGFMT_META_XFER_PATH, PR_JOT_LOGFMT_XFER_PATH_KEY,
+    PR_JSON_TYPE_STRING);
+  add_json_info(p, map, LOGFMT_META_DIR_NAME, PR_JOT_LOGFMT_DIR_NAME_KEY,
+    PR_JSON_TYPE_STRING);
+  add_json_info(p, map, LOGFMT_META_DIR_PATH, PR_JOT_LOGFMT_DIR_PATH_KEY,
+    PR_JSON_TYPE_STRING);
+  add_json_info(p, map, LOGFMT_META_CMD_PARAMS, PR_JOT_LOGFMT_CMD_PARAMS_KEY,
+    PR_JSON_TYPE_STRING);
+  add_json_info(p, map, LOGFMT_META_RESPONSE_STR,
+    PR_JOT_LOGFMT_RESPONSE_MSG_KEY, PR_JSON_TYPE_STRING);
+  add_json_info(p, map, LOGFMT_META_PROTOCOL, PR_JOT_LOGFMT_PROTOCOL_KEY,
+    PR_JSON_TYPE_STRING);
+  add_json_info(p, map, LOGFMT_META_VERSION, PR_JOT_LOGFMT_VERSION_KEY,
+    PR_JSON_TYPE_STRING);
+  add_json_info(p, map, LOGFMT_META_RENAME_FROM, PR_JOT_LOGFMT_RENAME_FROM_KEY,
+    PR_JSON_TYPE_STRING);
+  add_json_info(p, map, LOGFMT_META_FILE_MODIFIED,
+    PR_JOT_LOGFMT_FILE_MODIFIED_KEY, PR_JSON_TYPE_BOOL);
+  add_json_info(p, map, LOGFMT_META_UID, PR_JOT_LOGFMT_UID_KEY,
+    PR_JSON_TYPE_NUMBER);
+  add_json_info(p, map, LOGFMT_META_GID, PR_JOT_LOGFMT_GID_KEY,
+    PR_JSON_TYPE_NUMBER);
+  add_json_info(p, map, LOGFMT_META_RAW_BYTES_IN,
+    PR_JOT_LOGFMT_RAW_BYTES_IN_KEY, PR_JSON_TYPE_NUMBER);
+  add_json_info(p, map, LOGFMT_META_RAW_BYTES_OUT,
+    PR_JOT_LOGFMT_RAW_BYTES_OUT_KEY, PR_JSON_TYPE_NUMBER);
+  add_json_info(p, map, LOGFMT_META_EOS_REASON, PR_JOT_LOGFMT_EOS_REASON_KEY,
+    PR_JSON_TYPE_STRING);
+  add_json_info(p, map, LOGFMT_META_VHOST_IP, PR_JOT_LOGFMT_VHOST_IP_KEY,
+    PR_JSON_TYPE_STRING);
+  add_json_info(p, map, LOGFMT_META_NOTE_VAR, PR_JOT_LOGFMT_NOTE_KEY,
+    PR_JSON_TYPE_STRING);
+  add_json_info(p, map, LOGFMT_META_XFER_STATUS, PR_JOT_LOGFMT_XFER_STATUS_KEY,
+    PR_JSON_TYPE_STRING);
+  add_json_info(p, map, LOGFMT_META_XFER_FAILURE,
+    PR_JOT_LOGFMT_XFER_FAILURE_KEY, PR_JSON_TYPE_STRING);
+  add_json_info(p, map, LOGFMT_META_MICROSECS, PR_JOT_LOGFMT_MICROSECS_KEY,
+    PR_JSON_TYPE_NUMBER);
+  add_json_info(p, map, LOGFMT_META_MILLISECS, PR_JOT_LOGFMT_MILLISECS_KEY,
+    PR_JSON_TYPE_NUMBER);
+  add_json_info(p, map, LOGFMT_META_ISO8601, PR_JOT_LOGFMT_ISO8601_KEY,
+    PR_JSON_TYPE_STRING);
+  add_json_info(p, map, LOGFMT_META_GROUP, PR_JOT_LOGFMT_GROUP_KEY,
+    PR_JSON_TYPE_STRING);
+  add_json_info(p, map, LOGFMT_META_CONNECT, PR_JOT_LOGFMT_CONNECT_KEY,
     PR_JSON_TYPE_BOOL);
-  add_json_info(p, map, LOGFMT_META_UID, "uid", PR_JSON_TYPE_NUMBER);
-  add_json_info(p, map, LOGFMT_META_GID, "gid", PR_JSON_TYPE_NUMBER);
-  add_json_info(p, map, LOGFMT_META_RAW_BYTES_IN, "session_bytes_rcvd",
-    PR_JSON_TYPE_NUMBER);
-  add_json_info(p, map, LOGFMT_META_RAW_BYTES_OUT, "session_bytes_sent",
-    PR_JSON_TYPE_NUMBER);
-  add_json_info(p, map, LOGFMT_META_EOS_REASON, "session_end_reason",
-    PR_JSON_TYPE_STRING);
-  add_json_info(p, map, LOGFMT_META_VHOST_IP, "server_ip", PR_JSON_TYPE_STRING);
-  add_json_info(p, map, LOGFMT_META_NOTE_VAR, PR_JOT_LOGFMT_NOTE_NAME,
-    PR_JSON_TYPE_STRING);
-  add_json_info(p, map, LOGFMT_META_XFER_STATUS, "transfer_status",
-    PR_JSON_TYPE_STRING);
-  add_json_info(p, map, LOGFMT_META_XFER_FAILURE, "transfer_failure",
-    PR_JSON_TYPE_STRING);
-  add_json_info(p, map, LOGFMT_META_MICROSECS, "microsecs",
-    PR_JSON_TYPE_NUMBER);
-  add_json_info(p, map, LOGFMT_META_MILLISECS, "millisecs",
-    PR_JSON_TYPE_NUMBER);
-  add_json_info(p, map, LOGFMT_META_ISO8601, "timestamp", PR_JSON_TYPE_STRING);
-  add_json_info(p, map, LOGFMT_META_GROUP, "group", PR_JSON_TYPE_STRING);
-  add_json_info(p, map, LOGFMT_META_CONNECT, "connecting", PR_JSON_TYPE_BOOL);
-  add_json_info(p, map, LOGFMT_META_DISCONNECT, "disconnecting",
+  add_json_info(p, map, LOGFMT_META_DISCONNECT, PR_JOT_LOGFMT_DISCONNECT_KEY,
     PR_JSON_TYPE_BOOL);
 
   return map;
@@ -725,7 +737,7 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
         if (env != NULL) {
           char *field_name;
 
-          field_name = pstrcat(p, PR_JOT_LOGFMT_ENV_VAR_NAME, key, NULL);
+          field_name = pstrcat(p, PR_JOT_LOGFMT_ENV_VAR_KEY, key, NULL);
           (on_meta)(p, ctx, logfmt_id, field_name, env);
         }
       }
@@ -1141,7 +1153,7 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
         if (note != NULL) {
           char *field_name;
 
-          field_name = pstrcat(p, PR_JOT_LOGFMT_NOTE_NAME, note, NULL);
+          field_name = pstrcat(p, PR_JOT_LOGFMT_NOTE_KEY, note, NULL);
           (on_meta)(p, ctx, logfmt_id, field_name, note);
         }
       }
