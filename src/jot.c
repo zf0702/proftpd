@@ -1650,6 +1650,15 @@ int pr_jot_filters_destroy(pr_jot_filters_t *filters) {
   return 0;
 }
 
+int pr_jot_filters_include_classes(pr_jot_filters_t *filters, int log_class) {
+  if (filters == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  return (filters->included_classes == log_class);
+}
+
 void jot_set_deleted_filesz(off_t deleted_filesz) {
   jot_deleted_filesz = deleted_filesz;
 }

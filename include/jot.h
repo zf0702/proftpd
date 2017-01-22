@@ -105,6 +105,9 @@ pr_jot_filters_t *pr_jot_filters_create(pool *p, const char *rules,
 
 int pr_jot_filters_destroy(pr_jot_filters_t *filters);
 
+/* Do the filters include the given command class? */
+int pr_jot_filters_include_classes(pr_jot_filters_t *filters, int log_class);
+
 int pr_jot_resolve_logfmt(pool *p, cmd_rec *cmd, pr_jot_filters_t *filters,
   unsigned char *logfmt, pr_jot_ctx_t *ctx,
   void (*on_meta)(pool *, pr_jot_ctx_t *, unsigned char, const char *,

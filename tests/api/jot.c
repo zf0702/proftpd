@@ -193,9 +193,32 @@ START_TEST (jot_filters_destroy_test) {
   fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
     strerror(errno), errno);
 
-  filters = pr_jot_filters_create(p, "NONE", PR_JOT_FILTER_OPT_CLASSES, 0);
+  filters = pr_jot_filters_create(p, "NONE", PR_JOT_FILTER_TYPE_CLASSES, 0);
 
   mark_point();
+  res = pr_jot_filters_destroy(filters);
+  fail_unless(res == 0, "Failed to destroy filters: %s", strerror(errno));
+}
+END_TEST
+
+START_TEST (jot_filters_include_classes_test) {
+  int res;
+  pr_jot_filters_t *filters;
+
+  mark_point();
+  res = pr_jot_filters_include_classes(NULL, 0);
+  fail_unless(res < 0, "Failed to handle null filters");
+  fail_unless(errno == EINVAL, "Expected EINVAL (%d), got %s (%d)", EINVAL,
+    strerror(errno), errno);
+
+  filters = pr_jot_filters_create(p, "NONE", PR_JOT_FILTER_TYPE_CLASSES, 0);
+
+  res = pr_filters_include_classes(filters, CL_ALL);
+  fail_unless(res == FALSE, "Expected FALSE, got %d", res);
+
+  res = pr_filters_include_classes(filters, CL_NONE);
+  fail_unless(res == TRUE, "Expected TRUE, got %d", res);
+
   res = pr_jot_filters_destroy(filters);
   fail_unless(res == 0, "Failed to destroy filters: %s", strerror(errno));
 }
@@ -286,6 +309,7 @@ Suite *tests_get_jot_suite(void) {
 
   tcase_add_test(testcase, jot_filters_create_test);
   tcase_add_test(testcase, jot_filters_destroy_test);
+  tcase_add_test(testcase, jot_filters_include_classes_test);
   tcase_add_test(testcase, jot_resolve_logfmt_test);
   tcase_add_test(testcase, jot_on_json_test);
   tcase_add_test(testcase, jot_get_logfmt2json_test);
