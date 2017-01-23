@@ -283,7 +283,6 @@ static char *get_meta_arg(pool *p, unsigned char *meta, size_t *arg_len) {
   ptr = buf;
   len = 0;
 
-  memset(buf, '\0', sizeof(buf));
   while (*meta != LOGFMT_META_ARG_END) {
     pr_signals_handle();
     *ptr++ = (char) *meta++;
@@ -293,7 +292,7 @@ static char *get_meta_arg(pool *p, unsigned char *meta, size_t *arg_len) {
   *ptr = '\0';
   *arg_len = len;
 
-  return pstrdup(p, buf);
+  return pstrndup(p, buf, len);
 }
 
 static const char *get_meta_basename(cmd_rec *cmd) {
@@ -1171,6 +1170,7 @@ static void resolve_logfmt_id(pool *p, unsigned char logfmt_id,
 
       } else {
         char buf[128], *ch;
+        size_t len;
 
         /* Make sure that the SITE command used is all in uppercase, for
          * logging purposes.
@@ -1179,11 +1179,10 @@ static void resolve_logfmt_id(pool *p, unsigned char logfmt_id,
           *ch = toupper((int) *ch);
         }
 
-        memset(buf, '\0', sizeof(buf));
-        snprintf(buf, sizeof(buf)-1, "%s %s", (char *) cmd->argv[0],
+        len = snprintf(buf, sizeof(buf)-1, "%s %s", (char *) cmd->argv[0],
           (char *) cmd->argv[1]);
 
-        method = pstrdup(p, buf);
+        method = pstrndup(p, buf, len);
       }
 
       if (method != NULL) {

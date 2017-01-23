@@ -671,8 +671,8 @@ static void on_meta(pool *p, pr_jot_ctx_t *ctx, unsigned char logfmt_id,
         unsigned long num;
 
         num = *((double *) val);
-        memset(buf, '\0', sizeof(buf));
         text_len = snprintf(buf, sizeof(buf)-1, "%06lu", num);
+        buf[text_len] = '\0';
         text = buf;
         break;
       }
@@ -681,8 +681,8 @@ static void on_meta(pool *p, pr_jot_ctx_t *ctx, unsigned char logfmt_id,
         unsigned long num;
 
         num = *((double *) val);
-        memset(buf, '\0', sizeof(buf));
         text_len = snprintf(buf, sizeof(buf)-1, "%03lu", num);
+        buf[text_len] = '\0';
         text = buf;
         break;
       }
@@ -693,8 +693,8 @@ static void on_meta(pool *p, pr_jot_ctx_t *ctx, unsigned char logfmt_id,
         int num;
 
         num = *((double *) val);
-        memset(buf, '\0', sizeof(buf));
         text_len = snprintf(buf, sizeof(buf)-1, "%d", num);
+        buf[text_len] = '\0';
         text = buf;
         break;
       }
@@ -725,8 +725,8 @@ static void on_meta(pool *p, pr_jot_ctx_t *ctx, unsigned char logfmt_id,
         off_t num;
 
         num = *((double *) val);
-        memset(buf, '\0', sizeof(buf));
         text_len = snprintf(buf, sizeof(buf)-1, "%" PR_LU, (pr_off_t) num);
+        buf[text_len] = '\0';
         text = buf;
         break;
       }
@@ -735,8 +735,8 @@ static void on_meta(pool *p, pr_jot_ctx_t *ctx, unsigned char logfmt_id,
         unsigned long num;
 
         num = *((double *) val);
-        memset(buf, '\0', sizeof(buf));
         text_len = snprintf(buf, sizeof(buf)-1, "%lu", num);
+        buf[text_len] = '\0';
         text = buf;
         break;
       }
@@ -753,8 +753,8 @@ static void on_meta(pool *p, pr_jot_ctx_t *ctx, unsigned char logfmt_id,
         float num;
 
         num = *((double *) val);
-        memset(buf, '\0', sizeof(buf));
         text_len = snprintf(buf, sizeof(buf)-1, "%0.3f", num);
+        buf[text_len] = '\0';
         text = buf;
         break;
       }
@@ -925,8 +925,9 @@ static void log_event(cmd_rec *cmd, logfile_t *lf) {
   tmp_pool = make_sub_pool(cmd->tmp_pool);
   jot_ctx = pcalloc(tmp_pool, sizeof(pr_jot_ctx_t));
   log = pcalloc(tmp_pool, sizeof(struct extlog_buffer));
+  log->bufsz = log->buflen = sizeof(logbuf) - 1;
   log->ptr = log->buf = logbuf;
-  log->bufsz = log->buflen = sizeof(logbuf)-1;
+
   jot_ctx->log = log;
 
   res = pr_jot_resolve_logfmt(tmp_pool, cmd, lf->lf_jot_filters, f, jot_ctx,
