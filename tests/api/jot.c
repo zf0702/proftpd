@@ -226,6 +226,11 @@ START_TEST (jot_filters_include_classes_test) {
 }
 END_TEST
 
+START_TEST (jot_get_logfmt_id_test) {
+  /* XXX TODO */
+}
+END_TEST
+
 START_TEST (jot_resolve_logfmt_id_test) {
   /* XXX TODO */
 }
@@ -317,6 +322,7 @@ Suite *tests_get_jot_suite(void) {
   tcase_add_test(testcase, jot_filters_create_test);
   tcase_add_test(testcase, jot_filters_destroy_test);
   tcase_add_test(testcase, jot_filters_include_classes_test);
+  tcase_add_test(testcase, jot_parse_logfmt_test);
   tcase_add_test(testcase, jot_resolve_logfmt_id_test);
   tcase_add_test(testcase, jot_resolve_logfmt_test);
   tcase_add_test(testcase, jot_on_json_test);

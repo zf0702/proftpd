@@ -115,6 +115,17 @@ int pr_jot_filters_destroy(pr_jot_filters_t *filters);
 /* Do the filters include the given command class? */
 int pr_jot_filters_include_classes(pr_jot_filters_t *filters, int log_class);
 
+/* Parse the text for LogFormat variables.  For each one found, invoke the
+ * `on_meta` callback with the parsed LogFormat ID and its related data.
+ * If an unknown variable sequence, i.e. text within the expected "%{...}"
+ * format appears, the `on_unknown` callback will be invoked with that text.
+ * For non-variable characters, the `on_other` callback is invoked.
+ */
+int pr_jot_parse_logfmt(pool *p, const char *text, pr_jot_ctx_t *ctx,
+  void (*on_meta)(pool *, pr_jot_ctx_t *, unsigned char, const char *, size_t),
+  void (*on_unknown)(pool *, pr_jot_ctx_t *, const char *, size_t),
+  void (*on_other)(pool *, pr_jot_ctx_t *, char), int flags);
+
 /* Given a LogFormat ID (i.e. one of the LOGFMT_META_ values), resolve it to
  * its respective value.  If resolved, the `on_meta` callback will be invoked
  * with the resolved value.  If the variable has no resolved value, the

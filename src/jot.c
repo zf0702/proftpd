@@ -1587,19 +1587,13 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
 
         logfmt_data = get_meta_arg(p, (ptr + 3), &logfmt_datalen);
 
-        /* Skip past the META ID, META_START, META_ARG, META_ARG_END, and
-         * the data.
-         */
-        consumed_bytes = 4 + logfmt_datalen;
-
-      } else {
-        consumed_bytes = 1;
+        /* Skip past the META_START, META_ARG, META_ARG_END, and the data. */
+        consumed_bytes += (3 + logfmt_datalen);
       }
-      break;
     }
 
     default:
-      consumed_bytes = 1;
+      consumed_bytes += 1;
   }
 
   resolve_logfmt_id(p, logfmt_id, logfmt_data, ctx, cmd, on_meta, on_default);
@@ -1672,10 +1666,11 @@ static int is_jottable(pool *p, cmd_rec *cmd, pr_jot_filters_t *filters) {
   return jottable;
 }
 
-static void jot_default(pool *p, pr_jot_ctx_t *ctx, unsigned char meta) {
+static void jot_resolve_on_default(pool *p, pr_jot_ctx_t *ctx,
+  unsigned char meta) {
 }
 
-static void jot_other(pool *p, pr_jot_ctx_t *ctx, unsigned char ch) {
+static void jot_resolve_on_other(pool *p, pr_jot_ctx_t *ctx, unsigned char ch) {
 }
 
 int pr_jot_resolve_logfmt_id(pool *p, cmd_rec *cmd, pr_jot_filters_t *filters,
@@ -1693,7 +1688,7 @@ int pr_jot_resolve_logfmt_id(pool *p, cmd_rec *cmd, pr_jot_filters_t *filters,
   }
 
   if (on_default == NULL) {
-    on_default = jot_default;
+    on_default = jot_resolve_on_default;
   }
 
   jottable = is_jottable(p, cmd, filters);
@@ -1765,11 +1760,11 @@ int pr_jot_resolve_logfmt(pool *p, cmd_rec *cmd, pr_jot_filters_t *filters,
   }
 
   if (on_default == NULL) {
-    on_default = jot_default;
+    on_default = jot_resolve_on_default;
   }
 
   if (on_other == NULL) {
-    on_other = jot_other;
+    on_other = jot_resolve_on_other;
   }
 
   while (*logfmt) {
@@ -1782,6 +1777,354 @@ int pr_jot_resolve_logfmt(pool *p, cmd_rec *cmd, pr_jot_filters_t *filters,
       (on_other)(p, ctx, *logfmt);
       logfmt++;
     }
+  }
+
+  return 0;
+}
+
+static void jot_parse_on_other(pool *p, pr_jot_ctx_t *ctx, char ch) {
+}
+
+static int parse_short_id(const char *text, unsigned char *logfmt_id) {
+  switch (*text) {
+    case 'A':
+      *logfmt_id = LOGFMT_META_ANON_PASS;
+      break;
+
+    case 'D':
+      *logfmt_id = LOGFMT_META_DIR_PATH;
+      break;
+
+    case 'E':
+      *logfmt_id = LOGFMT_META_EOS_REASON;
+      break;
+
+    case 'F':
+      *logfmt_id = LOGFMT_META_XFER_PATH;
+      break;
+
+    case 'H':
+      *logfmt_id = LOGFMT_META_VHOST_IP;
+      break;
+
+    case 'I':
+      *logfmt_id = LOGFMT_META_RAW_BYTES_IN;
+      break;
+
+    case 'J':
+      *logfmt_id = LOGFMT_META_CMD_PARAMS;
+      break;
+
+    case 'L':
+      *logfmt_id = LOGFMT_META_LOCAL_IP;
+      break;
+
+    case 'O':
+      *logfmt_id = LOGFMT_META_RAW_BYTES_OUT;
+      break;
+
+    case 'R':
+      *logfmt_id = LOGFMT_META_RESPONSE_MS;
+      break;
+
+    case 'S':
+      *logfmt_id = LOGFMT_META_RESPONSE_STR;
+      break;
+
+    case 'T':
+      *logfmt_id = LOGFMT_META_SECONDS;
+      break;
+
+    case 'U':
+      *logfmt_id = LOGFMT_META_ORIGINAL_USER;
+      break;
+
+    case 'V':
+      *logfmt_id = LOGFMT_META_LOCAL_FQDN;
+      break;
+
+    case 'a':
+      *logfmt_id = LOGFMT_META_REMOTE_IP;
+      break;
+
+    case 'b':
+      *logfmt_id = LOGFMT_META_BYTES_SENT;
+      break;
+
+    case 'c':
+      *logfmt_id = LOGFMT_META_CLASS;
+      break;
+
+    case 'd':
+      *logfmt_id = LOGFMT_META_DIR_NAME;
+      break;
+
+    case 'f':
+      *logfmt_id = LOGFMT_META_FILENAME;
+      break;
+
+    case 'g':
+      *logfmt_id = LOGFMT_META_GROUP;
+      break;
+
+    case 'h':
+      *logfmt_id = LOGFMT_META_REMOTE_HOST;
+      break;
+
+    case 'l':
+      *logfmt_id = LOGFMT_META_IDENT_USER;
+      break;
+
+    case 'm':
+      *logfmt_id = LOGFMT_META_METHOD;
+      break;
+
+    case 'p':
+      *logfmt_id = LOGFMT_META_LOCAL_PORT;
+      break;
+
+    case 'r':
+      *logfmt_id = LOGFMT_META_COMMAND;
+      break;
+
+    case 's':
+      *logfmt_id = LOGFMT_META_RESPONSE_CODE;
+      break;
+
+    case 'u':
+      *logfmt_id = LOGFMT_META_USER;
+      break;
+
+    case 'v':
+      *logfmt_id = LOGFMT_META_LOCAL_NAME;
+      break;
+
+    case 'w':
+      *logfmt_id = LOGFMT_META_RENAME_FROM;
+      break;
+
+    default:
+      errno = ENOENT;
+      return -1;
+  }
+
+  return 1;
+}
+
+static int parse_unknown_id(const char *text, const char **logfmt_data,
+    size_t *logfmt_datalen) {
+  char *ptr;
+
+  if (*text != '{') {
+    errno = ENOENT;
+    return -1;
+  }
+
+  ptr = strchr(text + 1, '}');
+  if (ptr == NULL) {
+    errno = ENOENT;
+    return -1;
+  }
+
+  *logfmt_data = (text + 1);
+  *logfmt_datalen = (ptr - text - 1);
+  return (2 + *logfmt_datalen);
+}
+
+static int parse_long_id(const char *text, unsigned char *logfmt_id,
+    const char **logfmt_data, size_t *logfmt_datalen) {
+  int res;
+
+  if (strncmp(text, "{basename}", 10) == 0) {
+    *logfmt_id = LOGFMT_META_BASENAME;
+    return 10;
+  }
+
+  if (strncmp(text, "{env:", 5) == 0) {
+    char *ptr;
+
+    ptr = strchr(text + 5, '}');
+    if (ptr != NULL) {
+      *logfmt_id = LOGFMT_META_ENV_VAR;
+      *logfmt_data = text + 5;
+      *logfmt_datalen = (ptr - text);
+      return (6 + *logfmt_datalen);
+    }
+  }
+
+  if (strncmp(text, "{file-size}", 11) == 0) {
+    *logfmt_id = LOGFMT_META_FILE_SIZE;
+    return 11;
+  }
+
+  if (strncmp(text, "{file-offset}", 13) == 0) {
+    *logfmt_id = LOGFMT_META_FILE_OFFSET;
+    return 13;
+  }
+
+  if (strncmp(text, "{file-modified}", 15) == 0) {
+    *logfmt_id = LOGFMT_META_FILE_MODIFIED;
+    return 15;
+  }
+
+  if (strncmp(text, "{gid}", 5) == 0) {
+    *logfmt_id = LOGFMT_META_GID;
+    return 5;
+  }
+
+  if (strncmp(text, "{iso8601}", 9) == 0) {
+    *logfmt_id = LOGFMT_META_ISO8601;
+    return 9;
+  }
+
+  if (strncmp(text, "{microsecs}", 11) == 0) {
+    *logfmt_id = LOGFMT_META_MICROSECS;
+    return 11;
+  }
+
+  if (strncmp(text, "{millisecs}", 11) == 0) {
+    *logfmt_id = LOGFMT_META_MILLISECS;
+    return 11;
+  }
+
+  if (strncmp(text, "{note:", 6) == 0) {
+    char *ptr;
+
+    ptr = strchr(text + 6, '}');
+    if (ptr != NULL) {
+      *logfmt_id = LOGFMT_META_NOTE_VAR;
+      *logfmt_data = text + 6;
+      *logfmt_datalen = (ptr - text);
+      return (6 + *logfmt_datalen);
+    }
+  }
+
+  if (strncmp(text, "{protocol}", 10) == 0) {
+    *logfmt_id = LOGFMT_META_PROTOCOL;
+    return 10;
+  }
+
+  if (strncmp(text, "{remote-port}", 13) == 0) {
+    *logfmt_id = LOGFMT_META_REMOTE_PORT;
+    return 13;
+  }
+
+  if (strncmp(text, "{time:", 6) == 0) {
+    char *ptr;
+
+    ptr = strchr(text + 6, '}');
+    if (ptr != NULL) {
+      *logfmt_id = LOGFMT_META_TIME;
+      *logfmt_data = text + 6;
+      *logfmt_datalen = (ptr - text);
+      return (6 + *logfmt_datalen);
+    }
+  }
+
+  if (strncmp(text, "{transfer-failure}", 18) == 0) {
+    *logfmt_id = LOGFMT_META_XFER_FAILURE;
+    return 18;
+  }
+
+  if (strncmp(text, "{transfer-millisecs}", 20) == 0) {
+    *logfmt_id = LOGFMT_META_XFER_MS;
+    return 20;
+  }
+
+  if (strncmp(text, "{transfer-status}", 17) == 0) {
+    *logfmt_id = LOGFMT_META_XFER_STATUS;
+    return 17;
+  }
+
+  if (strncmp(text, "{transfer-type}", 15) == 0) {
+    *logfmt_id = LOGFMT_META_XFER_TYPE;
+    return 15;
+  }
+
+  if (strncmp(text, "{uid}", 5) == 0) {
+    *logfmt_id = LOGFMT_META_UID;
+    return 5;
+  }
+
+  if (strncmp(text, "{version}", 9) == 0) {
+    *logfmt_id = LOGFMT_META_UID;
+    return 9;
+  }
+
+  /* Check whether the text looks like it might be a long variable with the
+   * odd syntax that mod_log uses, e.g. "%{...}e" or "%{...}t".
+   */
+  res = parse_unknown_id(text, logfmt_data, logfmt_datalen);
+  if (res > 0) {
+    if (*(text + res) == 'e') {
+      *logfmt_id = LOGFMT_META_ENV_VAR;
+      return (1 + res);
+    }
+
+    if (*(text + res) == 't') {
+      *logfmt_id = LOGFMT_META_TIME;
+      return (1 + res);
+    }
+  }
+
+  errno = ENOENT;
+  return -1;
+}
+
+int pr_jot_parse_logfmt(pool *p, const char *text, pr_jot_ctx_t *ctx,
+  void (*on_meta)(pool *, pr_jot_ctx_t *, unsigned char, const char *, size_t),
+  void (*on_unknown)(pool *, pr_jot_ctx_t *, const char *, size_t),
+  void (*on_other)(pool *, pr_jot_ctx_t *, char), int flags) {
+  const char *ptr;
+
+  if (p == NULL ||
+      text == NULL ||
+      on_meta == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  if (on_other == NULL) {
+    on_other = jot_parse_on_other;
+  }
+
+  for (ptr = text; *ptr; ) {
+    int res;
+    unsigned char logfmt_id = 0;
+    const char *logfmt_data = NULL;
+    size_t logfmt_datalen = 0;
+
+    pr_signals_handle();
+
+    if (*ptr != '%') {
+      (on_other)(p, ctx, *ptr);
+      ptr += 1;
+      continue;
+    }
+
+    res = parse_short_id(ptr + 1, &logfmt_id);
+    if (res > 0) {
+      (on_meta)(p, ctx, logfmt_id, NULL, 0);
+      ptr += (res + 1);
+      continue;
+    }
+
+    res = parse_long_id(ptr + 1, &logfmt_id, &logfmt_data, &logfmt_datalen);
+    if (res > 0) {
+      (on_meta)(p, ctx, logfmt_id, logfmt_data, logfmt_datalen);
+      ptr += (res + 1);
+      continue;
+    }
+
+    res = parse_unknown_id(ptr + 1, &logfmt_data, &logfmt_datalen);
+    if (res > 0) {
+      (on_unknown)(p, ctx, logfmt_data, logfmt_datalen);
+      ptr += (res + 1);
+      continue;
+    }
+
+    (on_other)(p, ctx, *ptr);
+    ptr += 1;
   }
 
   return 0;

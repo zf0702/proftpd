@@ -1016,7 +1016,7 @@ static char *sql_prepare_where(int flags, cmd_rec *cmd, int cnt, ...) {
   }
 
   if (!(flags & SQL_PREPARE_WHERE_FL_NO_TAGS)) {
-    char *curr, *tmp;
+    char *curr, *ptr;
 
     /* Process variables in WHERE clauses, except any "%{num}" references.
      *
@@ -1026,65 +1026,63 @@ static char *sql_prepare_where(int flags, cmd_rec *cmd, int cnt, ...) {
     curr = res;
     curr_avail = SQL_MAX_STMT_LEN;
 
-    for (tmp = buf; *tmp; ) {
+    for (ptr = buf; *ptr; ) {
       char *str;
       modret_t *mr;
       size_t taglen;
 
       pr_signals_handle();
 
-      if (*tmp == '%') {
+      if (*ptr == '%') {
         char *tag = NULL;
 
-        if (*(++tmp) == '{') {
+        if (*(++ptr) == '{') {
           char *query = NULL;
 
-          if (*tmp != '\0')
-            query = ++tmp;
+          if (*ptr != '\0') {
+            query = ++ptr;
+          }
 
-          while (*tmp && *tmp != '}')
-            tmp++;
+          while (*ptr && *ptr != '}') {
+            ptr++;
+          }
 
-          tag = pstrndup(cmd->tmp_pool, query, (tmp - query));
-          if (tag) {
-            str = (char *) resolve_long_tag(cmd, tag);
-            if (str == NULL) {
-              str = pstrdup(cmd->tmp_pool, "");
-            }
+          tag = pstrndup(cmd->tmp_pool, query, (ptr - query));
+          str = (char *) resolve_long_tag(cmd, tag);
+          if (str == NULL) {
+            str = pstrdup(cmd->tmp_pool, "");
+          }
 
-            mr = sql_dispatch(sql_make_cmd(cmd->tmp_pool, 2,
-              MOD_SQL_DEF_CONN_NAME, str), "sql_escapestring");
-            if (check_response(mr, 0) < 0) {
-              return NULL;
-            }
-
-            /* Make sure we don't write too much data. */
-            taglen = strlen(mr->data);
-            if ((size_t) curr_avail > taglen) {
-              sstrcat(curr, mr->data, curr_avail);
-              curr += taglen;
-              curr_avail -= taglen;
-
-            } else {
-              /* Log when this happens; it means we have more input than buffer
-               * space.
-               */
-              sql_log(DEBUG_FUNC, "insufficient statement buffer size "
-                "(%d of %lu bytes) for tag (%lu bytes) when preparing "
-                "statement, ignoring tag '%s'", curr_avail,
-                (unsigned long) SQL_MAX_STMT_LEN, (unsigned long) taglen, tag);
-            }
-
-            /* Advance past the tag. */
-            if (*tmp != '\0')
-              tmp++;
-
-          } else {
+          mr = sql_dispatch(sql_make_cmd(cmd->tmp_pool, 2,
+            MOD_SQL_DEF_CONN_NAME, str), "sql_escapestring");
+          if (check_response(mr, 0) < 0) {
             return NULL;
           }
 
+          /* Make sure we don't write too much data. */
+          taglen = strlen(mr->data);
+          if ((size_t) curr_avail > taglen) {
+            sstrcat(curr, mr->data, curr_avail);
+            curr += taglen;
+            curr_avail -= taglen;
+
+          } else {
+            /* Log when this happens; it means we have more input than buffer
+             * space.
+             */
+            sql_log(DEBUG_FUNC, "insufficient statement buffer size "
+              "(%d of %lu bytes) for tag (%lu bytes) when preparing "
+              "statement, ignoring tag '%s'", curr_avail,
+              (unsigned long) SQL_MAX_STMT_LEN, (unsigned long) taglen, tag);
+          }
+
+          /* Advance past the tag. */
+          if (*ptr != '\0') {
+            ptr++;
+          }
+
         } else {
-          str = resolve_short_tag(cmd, *tmp);
+          str = resolve_short_tag(cmd, *ptr);
           mr = sql_dispatch(sql_make_cmd(cmd->tmp_pool, 2,
             MOD_SQL_DEF_CONN_NAME, str), "sql_escapestring");
           if (check_response(mr, 0) < 0) {
@@ -1105,19 +1103,20 @@ static char *sql_prepare_where(int flags, cmd_rec *cmd, int cnt, ...) {
             sql_log(DEBUG_FUNC, "insufficient statement buffer size "
               "(%d of %lu bytes) for tag (%lu bytes) when preparing "
               "statement, ignoring tag '%%%c'", curr_avail,
-              (unsigned long) SQL_MAX_STMT_LEN, (unsigned long) taglen, *tmp);
+              (unsigned long) SQL_MAX_STMT_LEN, (unsigned long) taglen, *ptr);
           }
 
           /* Advance past the tag. */
-          if (*tmp != '\0')
-            tmp++;
+          if (*ptr != '\0') {
+            ptr++;
+          }
         }
 
       } else {
 
         /* Make sure we don't try to write too much data. */
         if (curr_avail > 0) {
-          *curr++ = *tmp;
+          *curr++ = *ptr;
           curr_avail--;
 
         } else {
@@ -1130,8 +1129,9 @@ static char *sql_prepare_where(int flags, cmd_rec *cmd, int cnt, ...) {
           break;
         }
 
-        if (*tmp != '\0')
-          tmp++;
+        if (*ptr != '\0') {
+          ptr++;
+        }
       }
     }
 
@@ -2585,6 +2585,7 @@ static const char *resolve_long_tag(cmd_rec *cmd, char *tag) {
     time(&now);
     memset(time_str, 0, sizeof(time_str));
 
+/* XXX Jot uses gmtime, not localtime for META_TIME.  Need to watch for this! */
     tm = pr_localtime(NULL, &now);
     if (tm != NULL) {
       strftime(time_str, sizeof(time_str), fmt, tm);
