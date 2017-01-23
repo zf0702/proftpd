@@ -1738,18 +1738,11 @@ int pr_jot_resolve_logfmt(pool *p, cmd_rec *cmd, pr_jot_filters_t *filters,
   return 0;
 }
 
-/* XXX Would be nice to a pr_str_text2array() function */
-static array_header *filter_text2array(pool *p, char *text) {
-  char delim, *ptr;
-  array_header *names;
+static array_header *filter_text_to_array(pool *p, char *text) {
+  char delim;
   size_t text_len;
 
-  names = make_array(p, 1, sizeof(char *));
   text_len = strlen(text);
-
-  if (text_len == 0) {
-    return names;
-  }
 
   /* What delimiter to use?  By default, we will assume CSV, and thus use
    * a comma.  For backward compatibility, we also support pipes; first one
@@ -1760,34 +1753,7 @@ static array_header *filter_text2array(pool *p, char *text) {
     delim = '|';
   }
 
-  ptr = memchr(text, delim, text_len);
-  while (ptr != NULL) {
-    char *name;
-    size_t name_len;
-
-    pr_signals_handle();
-
-    name_len = ptr - text;
-
-    name = palloc(p, name_len + 1);
-    memcpy(name, text, name_len);
-    name[name_len] = '\0';
-    *((const char **) push_array(names)) = name;
-
-    text = ++ptr;
-
-    /* Include one byte for the comma character being skipped over. */
-    text_len = text_len - name_len - 1;
-
-    if (text_len == 0) {
-      break;
-    }
-
-    ptr = memchr(text, delim, text_len);
-  }
-  *((char **) push_array(names)) = pstrdup(p, text);
-
-  return names;
+  return pr_str_text_to_array(p, text, delim);
 }
 
 static int filter_get_classes(pool *p, array_header *names,
@@ -2011,7 +1977,7 @@ pr_jot_filters_t *pr_jot_filters_create(pool *p, const char *rules,
   pr_pool_tag(sub_pool, "Jot Filters pool");
 
   tmp_pool = make_sub_pool(p);
-  names = filter_text2array(tmp_pool, pstrdup(tmp_pool, rules));
+  names = filter_text_to_array(tmp_pool, pstrdup(tmp_pool, rules));
 
   switch (rules_type) {
     case PR_JOT_FILTER_TYPE_CLASSES: {
