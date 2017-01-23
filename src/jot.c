@@ -830,15 +830,11 @@ static const char *get_meta_transfer_type(cmd_rec *cmd) {
   return transfer_type;
 }
 
-static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
-    cmd_rec *cmd, void (*on_meta)(pool *, pr_jot_ctx_t *, unsigned char,
-      const char *, const void *), void (*on_default)(pool *, pr_jot_ctx_t *,
-      unsigned char)) {
-  unsigned char *ptr, logfmt_id;
-  int auto_adjust_ptr = TRUE;
-
-  ptr = (*logfmt) + 1;
-  logfmt_id = *ptr;
+static void resolve_logfmt_id(pool *p, unsigned char logfmt_id,
+    const char *logfmt_data, pr_jot_ctx_t *ctx, cmd_rec *cmd,
+    void (*on_meta)(pool *, pr_jot_ctx_t *, unsigned char,
+      const char *, const void *),
+    void (*on_default)(pool *, pr_jot_ctx_t *, unsigned char)) {
 
   pr_trace_msg(trace_channel, 17, "resolving LogFormat ID %u",
     (unsigned int) logfmt_id);
@@ -927,18 +923,11 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
     }
 
     case LOGFMT_META_ENV_VAR: {
-      ptr++;
+      if (logfmt_data != NULL) {
+        const char *key;
+        char *env;
 
-      if (*ptr == LOGFMT_META_START &&
-          *(ptr + 1) == LOGFMT_META_ARG) {
-        char *key, *env = NULL;
-        size_t key_len = 0;
-
-        key = get_meta_arg(p, (ptr + 2), &key_len);
-
-        /* Skip past the META_START, META_ARG, and the key bytes. */
-        ptr += (key_len + 3);
-
+        key = logfmt_data;
         env = pr_env_get(p, key);
         if (env != NULL) {
           char *field_name;
@@ -951,7 +940,6 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
         }
       }
 
-      auto_adjust_ptr = FALSE;
       break;
     }
 
@@ -1003,34 +991,20 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
     }
 
     case LOGFMT_META_TIME: {
-      char ts[128], *time_fmt = "%Y-%m-%d %H:%M:%S %z";
-      char *log_time_fmt = NULL;
+      const char *time_fmt = "%Y-%m-%d %H:%M:%S %z";
+      char ts[128];
       struct tm *tm;
       time_t now;
-
-      ptr++;
 
       now = time(NULL);
       tm = pr_gmtime(NULL, &now);
 
-      if (*ptr == LOGFMT_META_START &&
-          *(ptr + 1) == LOGFMT_META_ARG) {
-        size_t fmt_len = 0;
-
-        log_time_fmt = get_meta_arg(p, (ptr + 2), &fmt_len);
-
-        /* Skip past the META_START, META_ARG, and the format bytes. */
-        ptr += (fmt_len + 3);
-      }
-
-      if (log_time_fmt != NULL) {
-        time_fmt = log_time_fmt;
+      if (logfmt_data != NULL) {
+        time_fmt = logfmt_data;
       }
 
       strftime(ts, sizeof(ts)-1, time_fmt, tm);
-      (on_meta)(p, ctx, logfmt_id, log_time_fmt, ts);
-
-      auto_adjust_ptr = FALSE;
+      (on_meta)(p, ctx, logfmt_id, logfmt_data, ts);
       break;
     }
 
@@ -1438,24 +1412,14 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
       break;
 
     case LOGFMT_META_NOTE_VAR: {
-      ptr++;
-
-      if (*ptr == LOGFMT_META_START &&
-          *(ptr + 1) == LOGFMT_META_ARG) {
+      if (logfmt_data != NULL) {
         const char *note = NULL;
-        char *key;
-        size_t key_len = 0;
-
-        key = get_meta_arg(p, (ptr + 2), &key_len);
-
-        /* Skip past the META_START, META_ARG, and the key bytes. */
-        ptr += (key_len + 3);
 
         /* Check in the cmd->notes table first. */
-        note = pr_table_get(cmd->notes, key, NULL);
+        note = pr_table_get(cmd->notes, logfmt_data, NULL);
         if (note == NULL) {
           /* If not there, check in the session.notes table. */
-          note = pr_table_get(session.notes, key, NULL);
+          note = pr_table_get(session.notes, logfmt_data, NULL);
         }
 
         if (note != NULL) {
@@ -1469,7 +1433,6 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
         }
       }
 
-      auto_adjust_ptr = FALSE;
       break;
     }
 
@@ -1602,18 +1565,53 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
         (unsigned int) logfmt_id);
       break;
   }
+}
+
+static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
+    cmd_rec *cmd, void (*on_meta)(pool *, pr_jot_ctx_t *, unsigned char,
+      const char *, const void *), void (*on_default)(pool *, pr_jot_ctx_t *,
+      unsigned char)) {
+  unsigned char *ptr, logfmt_id;
+  const char *logfmt_data = NULL;
+  size_t consumed_bytes = 0;
+
+  ptr = (*logfmt) + 1;
+  logfmt_id = *ptr;
+
+  switch (logfmt_id) {
+    case LOGFMT_META_ENV_VAR:
+    case LOGFMT_META_NOTE_VAR:
+    case LOGFMT_META_TIME: {
+      if (*(ptr + 1) == LOGFMT_META_START &&
+          *(ptr + 2) == LOGFMT_META_ARG) {
+        size_t logfmt_datalen = 0;
+
+        logfmt_data = get_meta_arg(p, (ptr + 3), &logfmt_datalen);
+
+        /* Skip past the META ID, META_START, META_ARG, META_ARG_END, and
+         * the data.
+         */
+        consumed_bytes = 4 + logfmt_datalen;
+
+      } else {
+        consumed_bytes = 1;
+      }
+      break;
+    }
+
+    default:
+      consumed_bytes = 1;
+  }
+
+  resolve_logfmt_id(p, logfmt_id, logfmt_data, ctx, cmd, on_meta, on_default);
 
   /* Most of the time, a meta is encoded in just one byte, so we adjust the
    * pointer by incrementing by one.  Some meta are encoded using multiple
    * bytes (e.g. environment variables, notes, etc).  The resolving of these
-   * meta will adjust the pointer as needed themselves, in which case they
-   * set adjust_ptr = false.
+   * meta will adjust the `consumed_bytes` value themselves.
    */
 
-  if (auto_adjust_ptr == TRUE) {
-    ptr++;
-  }
-
+  ptr += consumed_bytes;
   *logfmt = ptr;
 }
 
@@ -1681,6 +1679,58 @@ static void jot_default(pool *p, pr_jot_ctx_t *ctx, unsigned char meta) {
 static void jot_other(pool *p, pr_jot_ctx_t *ctx, unsigned char ch) {
 }
 
+int pr_jot_resolve_logfmt_id(pool *p, cmd_rec *cmd, pr_jot_filters_t *filters,
+    unsigned char logfmt_id, const char *logfmt_data, pr_jot_ctx_t *ctx,
+    void (*on_meta)(pool *, pr_jot_ctx_t *, unsigned char, const char *,
+      const void *),
+    void (*on_default)(pool *, pr_jot_ctx_t *, unsigned char)) {
+  int jottable = FALSE;
+
+  if (p == NULL ||
+      cmd == NULL ||
+      on_meta == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  if (on_default == NULL) {
+    on_default = jot_default;
+  }
+
+  jottable = is_jottable(p, cmd, filters);
+  if (jottable == FALSE) {
+    pr_trace_msg(trace_channel, 17, "ignoring filtered event '%s'",
+      (const char *) cmd->argv[0]);
+    errno = EPERM;
+    return -1;
+  }
+
+  /* Special handling for the CONNECT/DISCONNECT meta. */
+  switch (logfmt_id) {
+    case LOGFMT_META_CONNECT: {
+      if (cmd->cmd_class == CL_CONNECT) {
+        int val = TRUE;
+        (on_meta)(p, ctx, LOGFMT_META_CONNECT, NULL, &val);
+      }
+      return 0;
+    }
+
+    case LOGFMT_META_DISCONNECT: {
+      if (cmd->cmd_class == CL_DISCONNECT) {
+        int val = TRUE;
+        (on_meta)(p, ctx, LOGFMT_META_DISCONNECT, NULL, &val);
+      }
+      return 0;
+    }
+
+    default:
+      break;
+  }
+
+  resolve_logfmt_id(p, logfmt_id, logfmt_data, ctx, cmd, on_meta, on_default);
+  return 0;
+}
+
 int pr_jot_resolve_logfmt(pool *p, cmd_rec *cmd, pr_jot_filters_t *filters,
     unsigned char *logfmt, pr_jot_ctx_t *ctx,
     void (*on_meta)(pool *, pr_jot_ctx_t *, unsigned char, const char *,
@@ -1695,14 +1745,6 @@ int pr_jot_resolve_logfmt(pool *p, cmd_rec *cmd, pr_jot_filters_t *filters,
       on_meta == NULL) {
     errno = EINVAL;
     return -1;
-  }
-
-  if (on_default == NULL) {
-    on_default = jot_default;
-  }
-
-  if (on_other == NULL) {
-    on_other = jot_other;
   }
 
   jottable = is_jottable(p, cmd, filters);
@@ -1721,6 +1763,14 @@ int pr_jot_resolve_logfmt(pool *p, cmd_rec *cmd, pr_jot_filters_t *filters,
   } else if (cmd->cmd_class == CL_DISCONNECT) {
     int val = TRUE;
     (on_meta)(p, ctx, LOGFMT_META_DISCONNECT, NULL, &val);
+  }
+
+  if (on_default == NULL) {
+    on_default = jot_default;
+  }
+
+  if (on_other == NULL) {
+    on_other = jot_other;
   }
 
   while (*logfmt) {

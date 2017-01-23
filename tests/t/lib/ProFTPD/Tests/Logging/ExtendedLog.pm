@@ -11802,6 +11802,8 @@ sub extlog_micros_ts_bug3889 {
     PidFile => $pid_file,
     ScoreboardFile => $scoreboard_file,
     SystemLog => $log_file,
+    TraceLog => $log_file,
+    Trace => 'extlog:20 jot:20',
 
     AuthUserFile => $auth_user_file,
     AuthGroupFile => $auth_group_file,

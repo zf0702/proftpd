@@ -115,6 +115,23 @@ int pr_jot_filters_destroy(pr_jot_filters_t *filters);
 /* Do the filters include the given command class? */
 int pr_jot_filters_include_classes(pr_jot_filters_t *filters, int log_class);
 
+/* Given a LogFormat ID (i.e. one of the LOGFMT_META_ values), resolve it to
+ * its respective value.  If resolved, the `on_meta` callback will be invoked
+ * with the resolved value.  If the variable has no resolved value, the
+ * `on_default` callback is invoked.
+ */
+int pr_jot_resolve_logfmt_id(pool *p, cmd_rec *cmd, pr_jot_filters_t *filter,
+  unsigned char logfmt_id, const char *logfmt_data, pr_jot_ctx_t *ctx,
+  void (*on_meta)(pool *, pr_jot_ctx_t *, unsigned char, const char *,
+    const void *),
+  void (*on_default)(pool *, pr_jot_ctx_t *, unsigned char));
+
+/* Given a LogFormat buffer, resolve each of the variables (i.e. "meta") to
+ * their respective values.  For each resolved variable, the `on_meta` callback
+ * will be invoked.  For each variable which has not resolved value, the
+ * `on_default` callback is invoked.  For any non-variable characters, the
+ * `on_other` callback is invoked.
+ */
 int pr_jot_resolve_logfmt(pool *p, cmd_rec *cmd, pr_jot_filters_t *filters,
   unsigned char *logfmt, pr_jot_ctx_t *ctx,
   void (*on_meta)(pool *, pr_jot_ctx_t *, unsigned char, const char *,

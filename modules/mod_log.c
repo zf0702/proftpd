@@ -76,6 +76,8 @@ static xaset_t *format_set = NULL;
 static logfile_t *logs = NULL;
 static xaset_t *log_set = NULL;
 
+static const char *trace_channel = "extlog";
+
 /* format string args:
    %A			- Anonymous username (password given)
    %a			- Remote client IP address
@@ -646,6 +648,8 @@ static void extlog_buffer_append(struct extlog_buffer *log, const char *text,
     text_len = log->buflen;
   }
 
+  pr_trace_msg(trace_channel, 19, "appending text '%s' (%lu) to buffer",
+    text, (unsigned long) text_len);
   memcpy(log->buf, text, text_len);
   log->buf += text_len;
   log->buflen -= text_len;
@@ -895,6 +899,7 @@ static void on_other(pool *p, pr_jot_ctx_t *ctx, unsigned char ch) {
 
   log = ctx->log;
   if (log->buflen > 0) {
+    pr_trace_msg(trace_channel, 19, "appending text '%c' (1) to buffer", ch);
     *(log->buf) = ch;
     log->buf++;
     log->buflen--;
