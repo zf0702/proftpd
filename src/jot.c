@@ -210,7 +210,7 @@ pr_table_t *pr_jot_get_logfmt2json(pool *p) {
 }
 
 void pr_jot_on_json(pool *p, pr_jot_ctx_t *ctx, unsigned char logfmt_id,
-    const char *jot_key, const void *val) {
+    const char *jot_hint, const void *val) {
   const struct logfmt_json_info *lji;
   pr_json_object_t *json;
   pr_table_t *logfmt_json_map;
@@ -257,8 +257,8 @@ void pr_jot_on_json(pool *p, pr_jot_ctx_t *ctx, unsigned char logfmt_id,
       json_key = lji->json_key;
 
       /* Use the hinted key, if available (e.g. for ENV/NOTE variables). */
-      if (jot_key != NULL) {
-        json_key = jot_key;
+      if (jot_hint != NULL) {
+        json_key = jot_hint;
       }
 
       (void) pr_json_object_set_string(p, json, json_key, (const char *) val);
@@ -283,6 +283,7 @@ static char *get_meta_arg(pool *p, unsigned char *meta, size_t *arg_len) {
   ptr = buf;
   len = 0;
 
+  memset(buf, '\0', sizeof(buf));
   while (*meta != LOGFMT_META_ARG_END) {
     pr_signals_handle();
     *ptr++ = (char) *meta++;
@@ -576,11 +577,32 @@ static const char *get_meta_filename(cmd_rec *cmd) {
         pr_cmd_cmp(cmd, PR_CMD_RMD_ID) == 0 ||
         pr_cmd_cmp(cmd, PR_CMD_XMKD_ID) == 0 ||
         pr_cmd_cmp(cmd, PR_CMD_XRMD_ID) == 0) {
-      filename = dir_abs_path(p, pr_fs_decode_path(p, cmd->arg), TRUE);
+      char *decoded_path;
+
+      decoded_path = pr_fs_decode_path(p, cmd->arg);
+      filename = dir_abs_path(p, decoded_path, TRUE);
+      if (filename == NULL) {
+        filename = dir_abs_path(p, decoded_path, FALSE);
+      }
+
+      if (filename == NULL) {
+        filename = decoded_path;
+      }
 
     } else if (pr_cmd_cmp(cmd, PR_CMD_MFMT_ID) == 0) {
+      char *decoded_path;
+
       /* MFMT has, as its filename, the second argument. */
-      filename = dir_abs_path(p, pr_fs_decode_path(p, cmd->argv[2]), TRUE);
+      decoded_path = pr_fs_decode_path(p, cmd->argv[2]);
+      filename = dir_abs_path(p, decoded_path, TRUE);
+      if (filename == NULL) {
+        /* This time, try without the interpolation. */
+        filename = dir_abs_path(p, decoded_path, FALSE);
+      }
+
+      if (filename == NULL) {
+        filename = decoded_path;
+      }
     }
   }
 
@@ -640,10 +662,12 @@ static const char *get_meta_transfer_failure(cmd_rec *cmd) {
 
 static const char *get_meta_transfer_path(cmd_rec *cmd) {
   const char *transfer_path = NULL;
+  pool *p;
+
+  p = cmd->tmp_pool;
 
   if (pr_cmd_cmp(cmd, PR_CMD_RNTO_ID) == 0) {
-    transfer_path = dir_best_path(cmd->tmp_pool,
-      pr_fs_decode_path(cmd->tmp_pool, cmd->arg));
+    transfer_path = dir_best_path(p, pr_fs_decode_path(p, cmd->arg));
 
   } else if (session.xfer.p != NULL &&
              session.xfer.path != NULL) {
@@ -659,8 +683,7 @@ static const char *get_meta_transfer_path(cmd_rec *cmd) {
         pr_cmd_cmp(cmd, PR_CMD_XMKD_ID) == 0 ||
         pr_cmd_cmp(cmd, PR_CMD_RMD_ID) == 0 ||
         pr_cmd_cmp(cmd, PR_CMD_XRMD_ID) == 0) {
-      transfer_path = dir_best_path(cmd->tmp_pool,
-        pr_fs_decode_path(cmd->tmp_pool, cmd->arg));
+      transfer_path = dir_best_path(p, pr_fs_decode_path(p, cmd->arg));
     }
   }
 
@@ -677,23 +700,12 @@ static int get_meta_transfer_secs(cmd_rec *cmd, double *transfer_secs) {
    */
   if (session.xfer.start_time.tv_sec != 0 ||
       session.xfer.start_time.tv_usec != 0) {
-    struct timeval end_time;
+    uint64_t start_ms = 0, end_ms = 0;
 
-    gettimeofday(&end_time, NULL);
-    end_time.tv_sec -= session.xfer.start_time.tv_sec;
+    pr_timeval2millis(&(session.xfer.start_time), &start_ms);
+    pr_gettimeofday_millis(&end_ms);
 
-    if (end_time.tv_usec >= session.xfer.start_time.tv_usec) {
-      end_time.tv_usec -= session.xfer.start_time.tv_usec;
-
-    } else {
-      end_time.tv_usec = 1000000L - (session.xfer.start_time.tv_usec -
-        end_time.tv_usec);
-      end_time.tv_sec--;
-    }
-
-    *transfer_secs = end_time.tv_sec;
-    *transfer_secs += (double) ((double) end_time.tv_usec / (double) 1000);
-
+    *transfer_secs = (end_ms - start_ms) / 1000.0;
     return 0;
   }
 
@@ -742,14 +754,12 @@ static const char *get_meta_transfer_status(cmd_rec *cmd) {
             }
 
           } else if (*resp_code == '1') {
-
             /* If the first digit of the response code is 1, then the
              * response code (for a data transfer command) is probably 150,
              * which means that the transfer was still in progress (didn't
              * complete with a 2xx/4xx response code) when we are called here,
              * which in turn means a timeout kicked in.
              */
-
             transfer_status = "timeout";
 
           } else {
@@ -830,6 +840,8 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
   ptr = (*logfmt) + 1;
   logfmt_id = *ptr;
 
+  pr_trace_msg(trace_channel, 17, "resolving LogFormat ID %u",
+    (unsigned int) logfmt_id);
   switch (logfmt_id) {
     case LOGFMT_META_BASENAME: {
       const char *basename;
@@ -923,7 +935,9 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
         size_t key_len = 0;
 
         key = get_meta_arg(p, (ptr + 2), &key_len);
-        ptr += key_len;
+
+        /* Skip past the META_START, META_ARG, and the key bytes. */
+        ptr += (key_len + 3);
 
         env = pr_env_get(p, key);
         if (env != NULL) {
@@ -988,11 +1002,9 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
       break;
     }
 
-    /* XXX Note: this implementation differs from that in mod_log for
-     * META_TIME...
-     */
     case LOGFMT_META_TIME: {
       char ts[128], *time_fmt = "%Y-%m-%d %H:%M:%S %z";
+      char *log_time_fmt = NULL;
       struct tm *tm;
       time_t now;
 
@@ -1005,11 +1017,18 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
           *(ptr + 1) == LOGFMT_META_ARG) {
         size_t fmt_len = 0;
 
-        time_fmt = get_meta_arg(p, (ptr + 2), &fmt_len);
+        log_time_fmt = get_meta_arg(p, (ptr + 2), &fmt_len);
+
+        /* Skip past the META_START, META_ARG, and the format bytes. */
+        ptr += (fmt_len + 3);
+      }
+
+      if (log_time_fmt != NULL) {
+        time_fmt = log_time_fmt;
       }
 
       strftime(ts, sizeof(ts)-1, time_fmt, tm);
-      (on_meta)(p, ctx, logfmt_id, NULL, ts);
+      (on_meta)(p, ctx, logfmt_id, log_time_fmt, ts);
 
       auto_adjust_ptr = FALSE;
       break;
@@ -1116,20 +1135,21 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
     case LOGFMT_META_RESPONSE_CODE: {
       const char *resp_code = NULL;
       double resp_num;
-      int res;
+      int have_code = FALSE, res;
 
       res = pr_response_get_last(cmd->tmp_pool, &resp_code, NULL);
       if (res == 0 &&
           resp_code != NULL) {
         resp_num = atoi(resp_code);
+        have_code = TRUE;
 
       /* Hack to add return code for proper logging of QUIT command. */
       } else if (pr_cmd_cmp(cmd, PR_CMD_QUIT_ID) == 0) {
-        res = 0;
         resp_num = 221;
+        have_code = TRUE;
       }
 
-      if (res == 0) {
+      if (have_code == TRUE) {
         (on_meta)(p, ctx, logfmt_id, NULL, &resp_num);
 
       } else {
@@ -1154,7 +1174,7 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
       const char *anon_pass;
 
       anon_pass = pr_table_get(session.notes, "mod_auth.anon-passwd", NULL);
-      if (anon_pass == NULL) {
+      if (anon_pass != NULL) {
         (on_meta)(p, ctx, logfmt_id, NULL, anon_pass);
 
       } else {
@@ -1168,9 +1188,10 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
       const char *method = NULL;
 
       if (pr_cmd_cmp(cmd, PR_CMD_SITE_ID) != 0) {
-        /* Note: Ignore "fake" commands like CONNECT, DISCONNECT, EXIT. */
-        if (!(cmd->cmd_class & CL_CONNECT) &&
-            !(cmd->cmd_class & CL_DISCONNECT)) {
+        /* Note: Ignore "fake" commands like CONNECT, but NOT DISCONNECT/EXIT.
+         * This is for backward compatibility, for better/worse.
+         */
+        if (!(cmd->cmd_class & CL_CONNECT)) {
           method = cmd->argv[0];
         }
 
@@ -1246,12 +1267,19 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
     case LOGFMT_META_CMD_PARAMS: {
       const char *params = NULL;
 
-      if (pr_cmd_cmp(cmd, PR_CMD_ADAT_ID) == 0 ||
-          pr_cmd_cmp(cmd, PR_CMD_PASS_ID) == 0) {
-        params = "(hidden)";
+      /* Note: Ignore "fake" commands like CONNECT, DISCONNECT, EXIT. */
+      if ((cmd->cmd_class & CL_CONNECT) ||
+          (cmd->cmd_class & CL_DISCONNECT)) {
+        params = NULL;
 
-      } else if (cmd->argc > 1) {
-        params = pr_fs_decode_path(p, cmd->arg);
+      } else {
+        if (pr_cmd_cmp(cmd, PR_CMD_ADAT_ID) == 0 ||
+            pr_cmd_cmp(cmd, PR_CMD_PASS_ID) == 0) {
+          params = "(hidden)";
+
+        } else if (cmd->argc > 1) {
+          params = pr_fs_decode_path(p, cmd->arg);
+        }
       }
 
       if (params != NULL) {
@@ -1419,7 +1447,9 @@ static void resolve_meta(pool *p, unsigned char **logfmt, pr_jot_ctx_t *ctx,
         size_t key_len = 0;
 
         key = get_meta_arg(p, (ptr + 2), &key_len);
-        ptr += key_len;
+
+        /* Skip past the META_START, META_ARG, and the key bytes. */
+        ptr += (key_len + 3);
 
         /* Check in the cmd->notes table first. */
         note = pr_table_get(cmd->notes, key, NULL);
@@ -1637,8 +1667,11 @@ static int is_jottable(pool *p, cmd_rec *cmd, pr_jot_filters_t *filters) {
     return TRUE;
   }
 
-  jottable = is_jottable_cmd(cmd, filters->cmd_ids->elts,
-    filters->cmd_ids->nelts);
+  if (filters->cmd_ids != NULL) {
+    jottable = is_jottable_cmd(cmd, filters->cmd_ids->elts,
+      filters->cmd_ids->nelts);
+  }
+
   return jottable;
 }
 
@@ -1676,7 +1709,8 @@ int pr_jot_resolve_logfmt(pool *p, cmd_rec *cmd, pr_jot_filters_t *filters,
   if (jottable == FALSE) {
     pr_trace_msg(trace_channel, 17, "ignoring filtered event '%s'",
       (const char *) cmd->argv[0]);
-    return 0;
+    errno = EPERM;
+    return -1;
   }
 
   /* Special handling for the CONNECT/DISCONNECT meta. */

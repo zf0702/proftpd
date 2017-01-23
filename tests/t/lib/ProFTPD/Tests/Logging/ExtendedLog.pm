@@ -12,6 +12,7 @@ use File::Spec;
 use IO::Handle;
 use IPC::Open3;
 use POSIX qw(:fcntl_h);
+use Sys::HostAddr;
 
 use ProFTPD::TestSuite::FTP;
 use ProFTPD::TestSuite::Utils qw(:auth :config :running :test :testsuite :features);
@@ -530,6 +531,8 @@ sub extlog_retr_default {
     PidFile => $pid_file,
     ScoreboardFile => $scoreboard_file,
     SystemLog => $log_file,
+    TraceLog => $log_file,
+    Trace => 'jot:20',
 
     AuthUserFile => $auth_user_file,
     AuthGroupFile => $auth_group_file,
@@ -599,80 +602,84 @@ sub extlog_retr_default {
 
   # Stop server
   server_stop($pid_file);
-
   $self->assert_child_ok($pid);
 
-  if (open(my $fh, "< $ext_log")) {
-    while (my $line = <$fh>) {
-      chomp($line);
+  eval {
+    if (open(my $fh, "< $ext_log")) {
+      while (my $line = <$fh>) {
+        chomp($line);
 
-      if ($ENV{TEST_VERBOSE}) { 
-        print STDERR "$line\n";
+        if ($ENV{TEST_VERBOSE}) { 
+          print STDERR "$line\n";
+        }
+
+        if ($line !~ /^127\.0\.0\.1 UNKNOWN/) {
+          die("Unexpected ExtendedLog line: $line");
+        }
+
+        if ($line =~ /\"USER (\S+)\" (\d+) /) {
+          my $logged_user = $1;
+          my $resp_code = $2;
+
+          my $expected = $user;
+          $self->assert($expected eq $logged_user,
+            "Expected user '$expected', got '$logged_user'");
+
+          $expected = '331';
+          $self->assert($expected eq $resp_code,
+            "Expected response code '$expected', got '$resp_code'");
+
+        } elsif ($line =~ /\"PASS \(hidden\)\" (\d+) /) {
+          my $resp_code = $1;
+
+          my $expected = '230';
+          $self->assert($expected eq $resp_code,
+            "Expected response code '$expected', got '$resp_code'");
+
+        } elsif ($line =~ /\"PASV\" (\d+) /) {
+          my $resp_code = $1;
+
+          my $expected = '227';
+          $self->assert($expected eq $resp_code,
+            "Expected response code '$expected', got '$resp_code'");
+
+        } elsif ($line =~ /\"RETR (\S+)\" (\d+) (\d+)/) {
+          my $logged_path = $1;
+          my $resp_code = $2;
+          my $xfer_len = $3;
+
+          my $expected = $test_file;
+          $self->assert($expected eq $logged_path,
+            "Expected transferred path '$expected', got '$logged_path'");
+
+          $expected = '226';
+          $self->assert($expected eq $resp_code,
+            "Expected response code '$expected', got '$resp_code'");
+
+          $expected = 14;
+          $self->assert($expected == $xfer_len,
+            "Expected tranferred bytes $expected, got $xfer_len");
+
+        } elsif ($line =~ /\"QUIT\" (\d+) /) {
+          my $resp_code = $1;
+
+          my $expected = '221';
+          $self->assert($expected eq $resp_code,
+            "Expected response code '$expected', got '$resp_code'");
+
+        } else {
+          die("Unexpected ExtendedLog line: $line");
+        }
       }
 
-      if ($line !~ /^127\.0\.0\.1 UNKNOWN/) {
-        die("Unexpected ExtendedLog line: $line");
-      }
+      close($fh);
 
-      if ($line =~ /\"USER (\S+)\" (\d+) /) {
-        my $logged_user = $1;
-        my $resp_code = $2;
-
-        my $expected = $user;
-        $self->assert($expected eq $logged_user,
-          test_msg("Expected user '$expected', got '$logged_user'"));
-
-        $expected = '331';
-        $self->assert($expected eq $resp_code,
-          test_msg("Expected response code '$expected', got '$resp_code'"));
-
-      } elsif ($line =~ /\"PASS \(hidden\)\" (\d+) /) {
-        my $resp_code = $1;
-
-        my $expected = '230';
-        $self->assert($expected eq $resp_code,
-          test_msg("Expected response code '$expected', got '$resp_code'"));
-
-      } elsif ($line =~ /\"PASV\" (\d+) /) {
-        my $resp_code = $1;
-
-        my $expected = '227';
-        $self->assert($expected eq $resp_code,
-          test_msg("Expected response code '$expected', got '$resp_code'"));
-
-      } elsif ($line =~ /\"RETR (\S+)\" (\d+) (\d+)/) {
-        my $logged_path = $1;
-        my $resp_code = $2;
-        my $xfer_len = $3;
-
-        my $expected = $test_file;
-        $self->assert($expected eq $logged_path,
-          test_msg("Expected transferred path '$expected', got '$logged_path'"));
-
-        $expected = '226';
-        $self->assert($expected eq $resp_code,
-          test_msg("Expected response code '$expected', got '$resp_code'"));
-
-        $expected = 14;
-        $self->assert($expected == $xfer_len,
-          test_msg("Expected tranferred bytes $expected, got $xfer_len"));
-
-      } elsif ($line =~ /\"QUIT\" (\d+) /) {
-        my $resp_code = $1;
-
-        my $expected = '221';
-        $self->assert($expected eq $resp_code,
-          test_msg("Expected response code '$expected', got '$resp_code'"));
-
-      } else {
-        die("Unexpected ExtendedLog line: $line");
-      }
+    } else {
+      die("Can't read $ext_log: $!");
     }
-
-    close($fh);
-
-  } else {
-    die("Can't read $ext_log: $!");
+  };
+  if ($@) {
+    $ex = $@;
   }
 
   if ($ex) {
@@ -3359,34 +3366,38 @@ sub extlog_dele_bug3469 {
   # variable was cleared out, as part of cleaning up the data connection,
   # too early.  The fix is to use session.notes, which also has that path
   # information.
-  if (open(my $fh, "< $ext_log")) {
-    if ($^O eq 'darwin') {
-      # MacOSX-specific hack
-      $test_file = '/private' . $test_file;
-    }
-
-    while (my $line = <$fh>) {
-      chomp($line);
-
-      if ($ENV{TEST_VERBOSE}) {
-        print STDERR "$line\n";
+  eval {
+    if (open(my $fh, "< $ext_log")) {
+      if ($^O eq 'darwin') {
+        # MacOSX-specific hack
+        $test_file = '/private' . $test_file;
       }
 
-      # We're only interested in the DELE log line
-      unless ($line =~ /^DELE (.*)$/i) {
-        next;
+      while (my $line = <$fh>) {
+        chomp($line);
+
+        if ($ENV{TEST_VERBOSE}) {
+          print STDERR "$line\n";
+        }
+
+        # We're only interested in the DELE log line
+        unless ($line =~ /^DELE (.*)$/i) {
+          next;
+        }
+
+        my $name = $1;
+        my $expected = $test_file;
+        $self->assert($expected eq $name, "Expected '$expected', got '$name'");
       }
 
-      my $name = $1;
-      my $expected = $test_file;
-      $self->assert($expected eq $name,
-        test_msg("Expected '$expected', got '$name'"));
+      close($fh);
+
+    } else {
+      die("Can't read $ext_log: $!");
     }
-
-    close($fh);
-
-  } else {
-    die("Can't read $ext_log: $!");
+  };
+  if ($@) {
+    $ex = $@;
   }
 
   if ($ex) {
@@ -5611,51 +5622,59 @@ sub extlog_exit_bug3559 {
   $self->assert_child_ok($pid);
 
   # Now, read in the ExtendedLog, and see whether the %I/%O variables
-  # are properly populated
-  if (open(my $fh, "< $ext_log")) {
-    my $ok = 0;
+  # are properly populated.
+  eval {
+    if (open(my $fh, "< $ext_log")) {
+      my $ok = 0;
 
-    while (my $line = <$fh>) {
-      chomp($line);
+      while (my $line = <$fh>) {
+        chomp($line);
 
-      if ($line =~ /^\S+ (\S+) (\S+) (.*?) (\d+) (\d+)$/) {
-        my $local_addr = $1;
-        my $cmd = $2;
-        my $resp = $3;
-        my $bytes_in = $4;
-        my $bytes_out = $5;
+        if ($ENV{TEST_VERBOSE}) {
+          print STDERR "# line: $line\n";
+        }
 
-        # Only watch for the EXIT command, to get the session total.
-        next unless $cmd eq 'EXIT';
+        if ($line =~ /^\S+ (\S+) (\S+) (.*?) (\d+) (\d+)$/) {
+          my $local_addr = $1;
+          my $cmd = $2;
+          my $resp = $3;
+          my $bytes_in = $4;
+          my $bytes_out = $5;
 
-        my $expected = '127.0.0.1';
-        $self->assert($expected eq $local_addr,
-          test_msg("Expected %L value $expected, got $local_addr"));
+          # Only watch for the EXIT command, to get the session total.
+          next unless $cmd eq 'EXIT';
 
-        $expected = 108;
-        $self->assert($expected == $bytes_in,
-          test_msg("Expected $expected, got $bytes_in"));
+          my $expected = '127.0.0.1';
+          $self->assert($expected eq $local_addr,
+            "Expected %L value $expected, got $local_addr");
 
-        # Why would this number vary so widely?  It's because of the notation
-        # used to express the port number in a PASV response.  That port
-        # number is ephemeral, chosen by the kernel.
+          $expected = 108;
+          $self->assert($expected == $bytes_in,
+            "Expected $expected, got $bytes_in");
 
-        my $expected_min = 232;
-        my $expected_max = 286;
-        $self->assert($expected_min <= $bytes_out &&
-                      $expected_max >= $bytes_out,
-          test_msg("Expected $expected_min - $expected_max, got $bytes_out"));
+          # Why would this number vary so widely?  It's because of the notation
+          # used to express the port number in a PASV response.  That port
+          # number is ephemeral, chosen by the kernel.
 
-        $ok = 1;
+          my $expected_min = 232;
+          my $expected_max = 286;
+          $self->assert($expected_min <= $bytes_out &&
+                        $expected_max >= $bytes_out,
+            "Expected $expected_min - $expected_max, got $bytes_out");
+
+          $ok = 1;
+        }
       }
+
+      close($fh);
+      $self->assert($ok == 1, "Did not find expected ExtendedLog lines");
+
+    } else {
+      die("Can't read $ext_log: $!");
     }
-
-    close($fh);
-    $self->assert($ok == 1,
-      test_msg("Did not find expected ExtendedLog lines"));
-
-  } else {
-    die("Can't read $ext_log: $!");
+  };
+  if ($@) {
+    $ex = $@;
   }
 
   if ($ex) {
@@ -6956,10 +6975,22 @@ sub extlog_vars_H_L_default_server_bug3620 {
 
   my ($port, $config_user, $config_group) = config_write($config_file, $config);
 
-  # NOTE: this real_addr value may need to be tweaked as necessary.  Or
-  # maybe find a Perl module which can list the interfaces currently configured
-  # for the machine; all we really want is a non-127.0.0.1 address.
-  my $real_addr = '192.168.0.101';
+  my $ipv4_addr = Sys::HostAddr->new();
+  my $v4_addrs = $ipv4_addr->addresses();
+
+  my $real_addr;
+  foreach my $v4_addr (@$v4_addrs) {
+    if ($v4_addr ne '127.0.0.1') {
+      $real_addr = $v4_addr;
+      last;
+    }
+  }
+
+  if (!defined($real_addr)) {
+    print STDERR "+ Unable to find non-127.0.0.1 IPv4 addresses, skipping test\n";
+    return;
+  }
+
   my $real_port = ProFTPD::TestSuite::Utils::get_high_numbered_port();
   my $vhost_addr = '0.0.0.0';
 
@@ -7168,41 +7199,48 @@ sub extlog_user_pass {
 
   # Stop server
   server_stop($pid_file);
-
   $self->assert_child_ok($pid);
 
   # Now, read in the ExtendedLog, and see whether the %U and %A variables were
   # properly written out.
-  if (open(my $fh, "< $ext_log")) {
-    my $ok = 0;
+  eval {
+    if (open(my $fh, "< $ext_log")) {
+      my $ok = 0;
 
-    while (my $line = <$fh>) {
-      chomp($line);
+      while (my $line = <$fh>) {
+        chomp($line);
 
-      if ($line =~ /(\S+): (\S+) (\S+)$/) {
-        my $cmd = $1;
-        my $log_user = $2;
-        my $log_pass = $3;
+        if ($ENV{TEST_VERBOSE}) {
+          print STDERR "# line: $line\n";
+        }
 
-        if ($cmd eq 'PASS') {
-          $self->assert($user eq $log_user,
-            test_msg("Expected '$user', got '$log_user'"));
+        if ($line =~ /(\S+): (\S+) (\S+)$/) {
+          my $cmd = $1;
+          my $log_user = $2;
+          my $log_pass = $3;
 
-          my $expected = 'UNKNOWN';
-          $self->assert($expected eq $log_pass,
-            test_msg("Expected '$expected', got '$log_pass'"));
+          if ($cmd eq 'PASS') {
+            $self->assert($user eq $log_user,
+              "Expected '$user', got '$log_user'");
 
-          $ok = 1;
+            my $expected = 'UNKNOWN';
+            $self->assert($expected eq $log_pass,
+              test_msg("Expected '$expected', got '$log_pass'"));
+
+            $ok = 1;
+          }
         }
       }
+
+      close($fh);
+      $self->assert($ok, "Expected ExtendedLog lines not found");
+
+    } else {
+      die("Can't read $ext_log: $!");
     }
-
-    close($fh);
-
-    $self->assert($ok, test_msg("Expected ExtendedLog lines not found"));
-
-  } else {
-    die("Can't read $ext_log: $!");
+  };
+  if ($@) {
+    $ex = $@;
   }
 
   if ($ex) {
@@ -11834,36 +11872,40 @@ sub extlog_micros_ts_bug3889 {
 
   # Stop server
   server_stop($pid_file);
-
   $self->assert_child_ok($pid);
 
-  if (open(my $fh, "< $ext_log")) {
-    my $line = <$fh>;
-    chomp($line);
+  eval {
+    if (open(my $fh, "< $ext_log")) {
+      my $line = <$fh>;
+      chomp($line);
 
-    if ($ENV{TEST_VERBOSE}) {
-      print STDERR "$line\n";
-    }
-
-    close($fh);
-
-    if ($line =~ /^\d{4}\-\d{2}\-\d{2} \d{2}:\d{2}:\d{2},\d{6}\s+(.*)?$/) {
-      my $file = $1; 
-
-      # MacOSX hack
-      if ($^O eq 'darwin') {
-        $test_file = ('/private' . $test_file);
+      if ($ENV{TEST_VERBOSE}) {
+        print STDERR "$line\n";
       }
 
-      $self->assert($test_file eq $file,
-        test_msg("Expected '$test_file', got '$file'"));
+      close($fh);
+
+      if ($line =~ /^\d{4}\-\d{2}\-\d{2} \d{2}:\d{2}:\d{2},\d{6}\s+(.*)?$/) {
+        my $file = $1; 
+
+        # MacOSX hack
+        if ($^O eq 'darwin') {
+          $test_file = ('/private' . $test_file);
+        }
+
+        $self->assert($test_file eq $file,
+          "Expected '$test_file', got '$file'");
+
+      } else {
+        $self->assert(0, "Did not see expected ExtendedLog line");
+      }
 
     } else {
-      $self->assert(0, test_msg("Did not see expected ExtendedLog line"));
+      die("Can't read $ext_log: $!");
     }
-
-  } else {
-    die("Can't read $ext_log: $!");
+  };
+  if ($@) {
+    $ex = $@;
   }
 
   if ($ex) {
@@ -14208,7 +14250,7 @@ sub extlog_var_transfer_type_retr {
 
           my $expected = 'binary';
           if ($ok == 1) {
-            $expected = 'ASCII';
+            $expected = 'ascii';
           }
           $self->assert($expected eq $xfer_type,
             test_msg("Expected transfer type '$expected', got '$xfer_type'"));
@@ -14364,7 +14406,7 @@ sub extlog_var_transfer_type_stor {
 
           my $expected = 'binary';
           if ($ok == 1) {
-            $expected = 'ASCII';
+            $expected = 'ascii';
           }
           $self->assert($expected eq $xfer_type,
             test_msg("Expected transfer type '$expected', got '$xfer_type'"));
