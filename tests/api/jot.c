@@ -226,7 +226,7 @@ START_TEST (jot_filters_include_classes_test) {
 }
 END_TEST
 
-START_TEST (jot_resolve_logfmt_test) {
+START_TEST (jot_resolve_logfmt_id_test) {
   /* XXX TODO */
 }
 END_TEST
