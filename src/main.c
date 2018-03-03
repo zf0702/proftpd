@@ -319,25 +319,30 @@ static int _dispatch(cmd_rec *cmd, int cmd_type, int validate, char *match) {
         }
       }
 
-      pr_log_debug(DEBUG4, "dispatching %s command '%s' to mod_%s",
-        (cmd_type == PRE_CMD ? "PRE_CMD" :
-         cmd_type == CMD ? "CMD" :
-         cmd_type == POST_CMD ? "POST_CMD" :
-         cmd_type == POST_CMD_ERR ? "POST_CMD_ERR" :
-         cmd_type == LOG_CMD ? "LOG_CMD" :
-         cmd_type == LOG_CMD_ERR ? "LOG_CMD_ERR" :
-         "(unknown)"),
-        cmdargstr, c->m->name);
+      /* Skip logging the internal CONNECT/DISCONNECT commands. */
+      if (!(cmd->cmd_class & CL_CONNECT) &&
+          !(cmd->cmd_class & CL_DISCONNECT)) {
 
-      pr_trace_msg("command", 7, "dispatching %s command '%s' to mod_%s.c",
-        (cmd_type == PRE_CMD ? "PRE_CMD" :
-         cmd_type == CMD ? "CMD" :
-         cmd_type == POST_CMD ? "POST_CMD" :
-         cmd_type == POST_CMD_ERR ? "POST_CMD_ERR" :
-         cmd_type == LOG_CMD ? "LOG_CMD" :
-         cmd_type == LOG_CMD_ERR ? "LOG_CMD_ERR" :
-         "(unknown)"),
-        cmdargstr, c->m->name);
+        pr_log_debug(DEBUG4, "dispatching %s command '%s' to mod_%s",
+          (cmd_type == PRE_CMD ? "PRE_CMD" :
+           cmd_type == CMD ? "CMD" :
+           cmd_type == POST_CMD ? "POST_CMD" :
+           cmd_type == POST_CMD_ERR ? "POST_CMD_ERR" :
+           cmd_type == LOG_CMD ? "LOG_CMD" :
+           cmd_type == LOG_CMD_ERR ? "LOG_CMD_ERR" :
+           "(unknown)"),
+          cmdargstr, c->m->name);
+
+        pr_trace_msg("command", 7, "dispatching %s command '%s' to mod_%s.c",
+          (cmd_type == PRE_CMD ? "PRE_CMD" :
+           cmd_type == CMD ? "CMD" :
+           cmd_type == POST_CMD ? "POST_CMD" :
+           cmd_type == POST_CMD_ERR ? "POST_CMD_ERR" :
+           cmd_type == LOG_CMD ? "LOG_CMD" :
+           cmd_type == LOG_CMD_ERR ? "LOG_CMD_ERR" :
+           "(unknown)"),
+          cmdargstr, c->m->name);
+      }
 
       cmd->cmd_class |= c->cmd_class;
 
@@ -607,9 +612,13 @@ int pr_cmd_dispatch_phase(cmd_rec *cmd, int phase, int flags) {
   cmd->server = main_server;
 
   if (flags & PR_CMD_DISPATCH_FL_CLEAR_RESPONSE) {
-    pr_trace_msg("response", 9,
-      "clearing response lists before dispatching command '%s'",
-      (char *) cmd->argv[0]);
+    /* Skip logging the internal CONNECT/DISCONNECT commands. */
+    if (!(cmd->cmd_class & CL_CONNECT) &&
+        !(cmd->cmd_class & CL_DISCONNECT)) {
+      pr_trace_msg("response", 9,
+        "clearing response lists before dispatching command '%s'",
+        (char *) cmd->argv[0]);
+    }
     pr_response_clear(&resp_list);
     pr_response_clear(&resp_err_list);
   }
@@ -628,8 +637,9 @@ int pr_cmd_dispatch_phase(cmd_rec *cmd, int phase, int flags) {
   /* Set the pool used by the Response API for this command. */
   pr_response_set_pool(cmd->pool);
 
-  for (cp = cmd->argv[0]; *cp; cp++)
+  for (cp = cmd->argv[0]; *cp; cp++) {
     *cp = toupper(*cp);
+  }
 
   if (cmd->cmd_class == 0) {
     cmd->cmd_class = get_command_class(cmd->argv[0]);
@@ -2232,6 +2242,7 @@ int main(int argc, char *argv[], char **envp) {
 
   memset(&session, 0, sizeof(session));
 
+  pr_fs_close_extra_fds();
   pr_proctitle_init(argc, argv, envp);
 
   /* Seed rand */
@@ -2535,12 +2546,6 @@ int main(int argc, char *argv[], char **envp) {
     pr_session_end(PR_SESS_END_FL_SYNTAX_CHECK);
   }
 
-  /* After configuration is complete, make sure that passwd, group
-   * aren't held open (unnecessary fds for master daemon)
-   */
-  endpwent();
-  endgrent();
-
   /* Security */
   {
     uid_t *uid = (uid_t *) get_param_ptr(main_server->conf, "UserID", FALSE);
@@ -2566,6 +2571,12 @@ int main(int argc, char *argv[], char **envp) {
       }
     }
   }
+
+  /* After configuration is complete, make sure that passwd, group
+   * aren't held open (unnecessary fds for master daemon)
+   */
+  endpwent();
+  endgrent();
 
   main_umask = get_param_ptr(main_server->conf, "Umask", FALSE);
   if (main_umask == NULL) {

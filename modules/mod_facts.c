@@ -24,6 +24,7 @@
 
 #include "conf.h"
 #include "privs.h"
+#include "error.h"
 
 #define MOD_FACTS_VERSION		"mod_facts/0.6"
 
@@ -245,7 +246,7 @@ static size_t facts_mlinfo_fmt(struct mlinfo *info, char *buf, size_t bufsz,
 
   if (facts_opts & FACTS_OPT_SHOW_MODIFY) {
     if (info->tm != NULL) {
-      len = snprintf(ptr, bufsz, "modify=%04d%02d%02d%02d%02d%02d;",
+      len = pr_snprintf(ptr, bufsz, "modify=%04d%02d%02d%02d%02d%02d;",
         info->tm->tm_year+1900, info->tm->tm_mon+1, info->tm->tm_mday,
         info->tm->tm_hour, info->tm->tm_min, info->tm->tm_sec);
 
@@ -258,34 +259,34 @@ static size_t facts_mlinfo_fmt(struct mlinfo *info, char *buf, size_t bufsz,
   }
 
   if (facts_opts & FACTS_OPT_SHOW_PERM) {
-    len = snprintf(ptr, bufsz - buflen, "perm=%s;", info->perm);
+    len = pr_snprintf(ptr, bufsz - buflen, "perm=%s;", info->perm);
     buflen += len;
     ptr = buf + buflen;
   }
 
   if (!S_ISDIR(info->st.st_mode) &&
       (facts_opts & FACTS_OPT_SHOW_SIZE)) {
-    len = snprintf(ptr, bufsz - buflen, "size=%" PR_LU ";",
+    len = pr_snprintf(ptr, bufsz - buflen, "size=%" PR_LU ";",
       (pr_off_t) info->st.st_size);
     buflen += len;
     ptr = buf + buflen;
   }
 
   if (facts_opts & FACTS_OPT_SHOW_TYPE) {
-    len = snprintf(ptr, bufsz - buflen, "type=%s;", info->type);
+    len = pr_snprintf(ptr, bufsz - buflen, "type=%s;", info->type);
     buflen += len;
     ptr = buf + buflen;
   }
 
   if (facts_opts & FACTS_OPT_SHOW_UNIQUE) {
-    len = snprintf(ptr, bufsz - buflen, "unique=%lXU%lX;",
+    len = pr_snprintf(ptr, bufsz - buflen, "unique=%lXU%lX;",
       (unsigned long) info->st.st_dev, (unsigned long) info->st.st_ino);
     buflen += len;
     ptr = buf + buflen;
   }
 
   if (facts_opts & FACTS_OPT_SHOW_UNIX_GROUP) {
-    len = snprintf(ptr, bufsz - buflen, "UNIX.group=%s;",
+    len = pr_snprintf(ptr, bufsz - buflen, "UNIX.group=%s;",
       pr_gid2str(NULL, info->st.st_gid));
     buflen += len;
     ptr = buf + buflen;
@@ -293,21 +294,21 @@ static size_t facts_mlinfo_fmt(struct mlinfo *info, char *buf, size_t bufsz,
 
   if (!(facts_mlinfo_opts & FACTS_MLINFO_FL_NO_NAMES)) {
     if (facts_opts & FACTS_OPT_SHOW_UNIX_GROUP_NAME) {
-      len = snprintf(ptr, bufsz - buflen, "UNIX.groupname=%s;", info->group);
+      len = pr_snprintf(ptr, bufsz - buflen, "UNIX.groupname=%s;", info->group);
       buflen += len;
       ptr = buf + buflen;
     }
   }
 
   if (facts_opts & FACTS_OPT_SHOW_UNIX_MODE) {
-    len = snprintf(ptr, bufsz - buflen, "UNIX.mode=0%o;",
+    len = pr_snprintf(ptr, bufsz - buflen, "UNIX.mode=0%o;",
       (unsigned int) info->st.st_mode & 07777);
     buflen += len;
     ptr = buf + buflen;
   }
 
   if (facts_opts & FACTS_OPT_SHOW_UNIX_OWNER) {
-    len = snprintf(ptr, bufsz - buflen, "UNIX.owner=%s;",
+    len = pr_snprintf(ptr, bufsz - buflen, "UNIX.owner=%s;",
       pr_uid2str(NULL, info->st.st_uid));
     buflen += len;
     ptr = buf + buflen;
@@ -315,7 +316,7 @@ static size_t facts_mlinfo_fmt(struct mlinfo *info, char *buf, size_t bufsz,
 
   if (!(facts_mlinfo_opts & FACTS_MLINFO_FL_NO_NAMES)) {
     if (facts_opts & FACTS_OPT_SHOW_UNIX_OWNER_NAME) {
-      len = snprintf(ptr, bufsz - buflen, "UNIX.ownername=%s;", info->user);
+      len = pr_snprintf(ptr, bufsz - buflen, "UNIX.ownername=%s;", info->user);
       buflen += len;
       ptr = buf + buflen;
     }
@@ -326,7 +327,7 @@ static size_t facts_mlinfo_fmt(struct mlinfo *info, char *buf, size_t bufsz,
 
     mime_type = facts_mime_type(info);
     if (mime_type != NULL) {
-      len = snprintf(ptr, bufsz - buflen, "media-type=%s;",
+      len = pr_snprintf(ptr, bufsz - buflen, "media-type=%s;",
         mime_type);
       buflen += len;
       ptr = buf + buflen;
@@ -334,10 +335,10 @@ static size_t facts_mlinfo_fmt(struct mlinfo *info, char *buf, size_t bufsz,
   }
 
   if (flags & FACTS_MLINFO_FL_APPEND_CRLF) {
-    len = snprintf(ptr, bufsz - buflen, " %s\r\n", info->path);
+    len = pr_snprintf(ptr, bufsz - buflen, " %s\r\n", info->path);
 
   } else {
-    len = snprintf(ptr, bufsz - buflen, " %s", info->path);
+    len = pr_snprintf(ptr, bufsz - buflen, " %s", info->path);
   }
 
   buf[bufsz-1] = '\0';
@@ -894,12 +895,14 @@ static int facts_modify_mtime(pool *p, const char *path, char *timestamp) {
 
 static int facts_modify_unix_group(pool *p, const char *path,
     const char *group) {
+  int res, xerrno = 0;
   gid_t gid;
-  char *tmp = NULL;
+  char *ptr = NULL;
+  pr_error_t *err = NULL;
 
-  gid = strtoul(group, &tmp, 10);
-  if (tmp &&
-      *tmp) {
+  gid = strtoul(group, &ptr, 10);
+  if (ptr &&
+      *ptr) {
     /* Try to lookup the GID using the value as a name. */
     gid = pr_auth_name2gid(p, group);
     if (gid == (gid_t) -1) {
@@ -909,9 +912,26 @@ static int facts_modify_unix_group(pool *p, const char *path,
     }
   }
 
-  if (pr_fsio_chown(path, (uid_t) -1, gid) < 0) {
-    pr_log_debug(DEBUG5, MOD_FACTS_VERSION
-      ": error modifying UNIX.group fact for '%s': %s", path, strerror(errno));
+  res = pr_fsio_chown_with_error(p, path, (uid_t) -1, gid, &err);
+  xerrno = errno;
+
+  if (res < 0) {
+    pr_error_set_where(err, &facts_module, __FILE__, __LINE__ - 4);
+    pr_error_set_why(err, pstrcat(p, "modify UNIX.group fact for '", path,
+      "'", NULL));
+
+    if (err != NULL) {
+      pr_log_debug(DEBUG5, MOD_FACTS_VERSION ": %s", pr_error_strerror(err, 0));
+      pr_error_destroy(err);
+      err = NULL;
+
+    } else {
+      pr_log_debug(DEBUG5, MOD_FACTS_VERSION
+        ": error modifying UNIX.group fact for '%s': %s", path,
+        strerror(xerrno));
+    }
+
+    errno = xerrno;
     return -1;
   }
 
@@ -919,20 +939,40 @@ static int facts_modify_unix_group(pool *p, const char *path,
 }
 
 static int facts_modify_unix_mode(pool *p, const char *path, char *mode_str) {
+  int res, xerrno = 0;
   mode_t mode;
-  char *tmp = NULL;
+  char *ptr = NULL;
+  pr_error_t *err = NULL;
 
-  mode = strtoul(mode_str, &tmp, 8);
-  if (tmp &&
-      *tmp) {
+  mode = strtoul(mode_str, &ptr, 8);
+  if (ptr &&
+      *ptr) {
     pr_log_debug(DEBUG3, MOD_FACTS_VERSION
       ": UNIX.mode fact '%s' is not an octal number", mode_str);
+    errno = EINVAL;
     return -1;
   }
 
-  if (pr_fsio_chmod(path, mode) < 0) {
-    pr_log_debug(DEBUG5, MOD_FACTS_VERSION
-      ": error modifying UNIX.mode fact for '%s': %s", path, strerror(errno));
+  res = pr_fsio_chmod_with_error(p, path, mode, &err);
+  xerrno = errno;
+
+  if (res < 0) {
+    pr_error_set_where(err, &facts_module, __FILE__, __LINE__ - 4);
+    pr_error_set_why(err, pstrcat(p, "modify UNIX.mode fact for '", path, "'",
+      NULL));
+
+    if (err != NULL) {
+      pr_log_debug(DEBUG5, MOD_FACTS_VERSION ": %s", pr_error_strerror(err, 0));
+      pr_error_destroy(err);
+      err = NULL;
+
+    } else {
+      pr_log_debug(DEBUG5, MOD_FACTS_VERSION
+        ": error modifying UNIX.mode fact for '%s': %s", path,
+        strerror(xerrno));
+    }
+
+    errno = xerrno;
     return -1;
   }
 

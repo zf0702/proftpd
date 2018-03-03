@@ -2,7 +2,7 @@
  * ProFTPD - FTP server daemon
  * Copyright (c) 1997, 1998 Public Flood Software
  * Copyright (c) 1999, 2000 MacGyver aka Habeeb J. Dihu <macgyver@tos.net>
- * Copyright (c) 2001-2016 The ProFTPD Project team
+ * Copyright (c) 2001-2017 The ProFTPD Project team
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -159,7 +159,8 @@ static int data_passive_open(const char *reason, off_t size) {
     if (session.xfer.xfer_type != STOR_UNIQUE) {
       if (size) {
         pr_response_send(R_150, _("Opening %s mode data connection for %s "
-          "(%" PR_LU " bytes)"), MODE_STRING, reason, (pr_off_t) size);
+          "(%" PR_LU " %s)"), MODE_STRING, reason, (pr_off_t) size,
+          size != 1 ? "bytes" : "byte");
 
       } else {
         pr_response_send(R_150, _("Opening %s mode data connection for %s"),
@@ -212,9 +213,8 @@ static int data_passive_open(const char *reason, off_t size) {
 
 static int data_active_open(const char *reason, off_t size) {
   conn_t *c;
-  int bind_port, rev;
+  int bind_port, rev, *root_revoke = NULL;
   const pr_netaddr_t *bind_addr = NULL;
-  unsigned char *root_revoke = NULL;
 
   if (session.c->remote_addr == NULL) {
     /* An opened but unconnected connection? */
@@ -243,7 +243,14 @@ static int data_active_open(const char *reason, off_t size) {
   bind_port = session.c->local_port-1;
 
   root_revoke = get_param_ptr(TOPLEVEL_CONF, "RootRevoke", FALSE);
-  if (root_revoke != NULL) {
+  if (root_revoke == NULL) {
+    /* In the absence of any explicit RootRevoke, the default behavior is to
+     * change the source port.  This means we are technically noncompliant,
+     * but most clients do not enforce this behavior.
+     */
+    bind_port = INPORT_ANY;
+
+  } else {
     /* A RootRevoke value of 0 indicates 'false', 1 indicates 'true', and
      * 2 indicates 'NonCompliantActiveTransfer'.  We change the source port for
      * a RootRevoke value of 2, and for a value of 1, we make sure that
@@ -356,7 +363,8 @@ static int data_active_open(const char *reason, off_t size) {
     if (session.xfer.xfer_type != STOR_UNIQUE) {
       if (size) {
         pr_response_send(R_150, _("Opening %s mode data connection for %s "
-          "(%" PR_LU " bytes)"), MODE_STRING, reason, (pr_off_t) size);
+          "(%" PR_LU " %s)"), MODE_STRING, reason, (pr_off_t) size,
+          size != 1 ? "bytes" : "byte");
 
       } else {
         pr_response_send(R_150, _("Opening %s mode data connection for %s"),
@@ -879,7 +887,7 @@ void pr_data_abort(int err, int quiet) {
     if (msg == NULL &&
         (msg = strerror(err)) == NULL ) {
 
-      if (snprintf(msgbuf, sizeof(msgbuf),
+      if (pr_snprintf(msgbuf, sizeof(msgbuf),
           _("Unknown or out of range errno [%d]"), err) > 0)
 	msg = msgbuf;
     }
@@ -1135,7 +1143,7 @@ int pr_data_xfer(char *cl_buf, size_t cl_size) {
         while (len < 0) {
           int xerrno = errno;
  
-          if (xerrno == EAGAIN) {
+          if (xerrno == EAGAIN || xerrno == EINTR) {
             /* Since our socket is in non-blocking mode, read(2) can return
              * EAGAIN if there is no data yet for us.  Handle this by
              * delaying temporarily, then trying again.
@@ -1170,6 +1178,9 @@ int pr_data_xfer(char *cl_buf, size_t cl_size) {
         }
 
         if (len > 0) {
+          pr_trace_msg(trace_channel, 19, "read %d %s from network", len,
+            len != 1 ? "bytes" : "byte");
+
           buflen += len;
 
           if (timeout_stalled) {
@@ -1257,7 +1268,7 @@ int pr_data_xfer(char *cl_buf, size_t cl_size) {
       while (len < 0) {
         int xerrno = errno;
 
-        if (xerrno == EAGAIN) {
+        if (xerrno == EAGAIN || xerrno == EINTR) {
           /* Since our socket is in non-blocking mode, read(2) can return
            * EAGAIN if there is no data yet for us.  Handle this by
            * delaying temporarily, then trying again.
@@ -1273,6 +1284,9 @@ int pr_data_xfer(char *cl_buf, size_t cl_size) {
       }
 
       if (len > 0) {
+        pr_trace_msg(trace_channel, 19, "read %d %s from network", len,
+          len != 1 ? "bytes" : "byte");
+
         if (data_first_byte_read == FALSE) {
           if (pr_trace_get_level(timing_channel)) {
             unsigned long elapsed_ms;
@@ -1354,7 +1368,7 @@ int pr_data_xfer(char *cl_buf, size_t cl_size) {
       while (bwrote < 0) {
         int xerrno = errno;
 
-        if (xerrno == EAGAIN) {
+        if (xerrno == EAGAIN || xerrno == EINTR) {
           /* Since our socket is in non-blocking mode, write(2) can return
            * EAGAIN if there is not enough from for our data yet.  Handle
            * this by delaying temporarily, then trying again.
@@ -1373,6 +1387,9 @@ int pr_data_xfer(char *cl_buf, size_t cl_size) {
       }
 
       if (bwrote > 0) {
+        pr_trace_msg(trace_channel, 19, "wrote %d %s to network", bwrote,
+          bwrote != 1 ? "bytes" : "byte");
+
         if (data_first_byte_written == FALSE) {
           if (pr_trace_get_level(timing_channel)) {
             unsigned long elapsed_ms;
@@ -1499,7 +1516,22 @@ pr_sendfile_t pr_data_sendfile(int retr_fd, off_t *offset, off_t count) {
 # endif
 #endif /* !HAVE_SOLARIS_SENDFILE */
 
+    errno = 0;
     len = sendfile(PR_NETIO_FD(session.d->outstrm), retr_fd, offset, count);
+
+    /* If no data could be written (e.g. the file was truncated), we're
+     * done (Bug#4318).
+     */
+    if (len == 0) {
+      if (errno != EINTR &&
+          errno != EAGAIN) {
+        break;
+      }
+
+      /* Handle our interrupting signal, and continue. */
+      pr_signals_handle();
+    }
+
     if (len != -1 &&
         len < count) {
       /* Under Linux semantics, this occurs when a signal has interrupted
@@ -1605,7 +1637,6 @@ pr_sendfile_t pr_data_sendfile(int retr_fd, off_t *offset, off_t count) {
     len = (int) parms.bytes_sent;
 
     if (rc < -1 || rc == 1) {
-
 #endif /* HAVE_AIX_SENDFILE */
 
       /* IMO, BSD's semantics are warped.  Apparently, since we have our

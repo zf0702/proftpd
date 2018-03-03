@@ -301,7 +301,7 @@ static int exec_passphrase_provider(server_rec *s, char *buf, int buflen,
     stdin_argv[0] = pstrdup(tmp_pool, passphrase_provider);
 
     memset(nbuf, '\0', sizeof(nbuf));
-    snprintf(nbuf, sizeof(nbuf)-1, "%u", (unsigned int) s->ServerPort);
+    pr_snprintf(nbuf, sizeof(nbuf)-1, "%u", (unsigned int) s->ServerPort);
     nbuf[sizeof(nbuf)-1] = '\0';
     stdin_argv[1] = pstrcat(tmp_pool, s->ServerName, ":", nbuf, NULL);
     stdin_argv[2] = pstrdup(tmp_pool, path);
@@ -614,7 +614,7 @@ static int get_passphrase(struct sftp_pkey *k, const char *path) {
   register unsigned int attempt;
 
   memset(prompt, '\0', sizeof(prompt));
-  res = snprintf(prompt, sizeof(prompt)-1,
+  res = pr_snprintf(prompt, sizeof(prompt)-1,
     "Host key for the %s#%d (%s) server: ",
     pr_netaddr_get_ipstr(k->server->addr), k->server->ServerPort,
     k->server->ServerName);
@@ -995,7 +995,7 @@ static EVP_PKEY *get_pkey_from_data(pool *p, unsigned char *pkey_data,
 
     if (sftp_keys_validate_ecdsa_params(curve, point) < 0) {
       (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
-        "erorr validating EC public key: %s", strerror(errno));
+        "error validating EC public key: %s", strerror(errno));
       EC_POINT_free(point);
       EC_KEY_free(ec);
       return NULL;
@@ -1388,7 +1388,7 @@ static int get_pkey_type(EVP_PKEY *pkey) {
 
 #if OPENSSL_VERSION_NUMBER >= 0x10100000L && \
     !defined(HAVE_LIBRESS)
-  pkey_type = EVP_PKEY_id(pkey);
+  pkey_type = EVP_PKEY_base_id(pkey);
 #else
   pkey_type = EVP_PKEY_type(pkey->type);
 #endif /* OpenSSL 1.1.x and later */
@@ -1775,7 +1775,7 @@ const char *sftp_keys_get_fingerprint(pool *p, unsigned char *key_data,
     char c[4];
 
     memset(c, '\0', sizeof(c));
-    snprintf(c, sizeof(c), "%02x:", fp_data[i]);
+    pr_snprintf(c, sizeof(c), "%02x:", fp_data[i]);
     fp = pstrcat(p, fp, &c, NULL);
   }
   fp[strlen(fp)-1] = '\0';
@@ -1975,7 +1975,7 @@ static int handle_hostkey(pool *p, EVP_PKEY *pkey,
       if (sftp_keys_validate_ecdsa_params(EC_KEY_get0_group(ec),
           EC_KEY_get0_public_key(ec)) < 0) {
         (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
-          "erorr validating EC public key: %s", strerror(errno));
+          "error validating EC public key: %s", strerror(errno));
         EC_KEY_free(ec);
         EVP_PKEY_free(pkey);
         return -1;
@@ -1983,7 +1983,7 @@ static int handle_hostkey(pool *p, EVP_PKEY *pkey,
 
       if (validate_ecdsa_private_key(ec)) {
         (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
-          "erorr validating EC private key: %s", strerror(errno));
+          "error validating EC private key: %s", strerror(errno));
         EC_KEY_free(ec);
         EVP_PKEY_free(pkey);
         return -1;

@@ -442,7 +442,8 @@ MODRET auth_post_pass(cmd_rec *cmd) {
   const char *grantmsg = NULL, *user;
   unsigned int ctxt_precedence = 0;
   unsigned char have_user_timeout, have_group_timeout, have_class_timeout,
-    have_all_timeout, *root_revoke = NULL, *authenticated;
+    have_all_timeout, *authenticated;
+  int root_revoke = TRUE;
   struct stat st;
 
   /* Was there a precending USER command? Was the client successfully
@@ -664,13 +665,27 @@ MODRET auth_post_pass(cmd_rec *cmd) {
 
   login_succeeded(cmd->tmp_pool, user);
 
-  /* A RootRevoke value of 0 indicates 'false', 1 indicates 'true', and
-   * 2 indicates 'NonCompliantActiveTransfer'.  We will drop root privs for any
-   * RootRevoke value greater than 0.
-   */
-  root_revoke = get_param_ptr(TOPLEVEL_CONF, "RootRevoke", FALSE);
-  if (root_revoke != NULL &&
-      *root_revoke > 0) {
+  /* Should we give up root privs completely here? */
+  c = find_config(main_server->conf, CONF_PARAM, "RootRevoke", FALSE);
+  if (c != NULL) {
+    root_revoke = *((int *) c->argv[0]);
+
+    if (root_revoke == FALSE) {
+      pr_log_debug(DEBUG8, "retaining root privileges per RootRevoke setting");
+    }
+
+  } else {
+    /* Do a recursive look for any UserOwner directives; honoring that
+     * configuration also requires root privs.
+     */
+    c = find_config(main_server->conf, CONF_PARAM, "UserOwner", TRUE);
+    if (c != NULL) {
+      pr_log_debug(DEBUG9, "retaining root privileges per UserOwner setting");
+      root_revoke = FALSE;
+    }
+  }
+
+  if (root_revoke) {
     pr_signals_block();
     PRIVS_ROOT
     PRIVS_REVOKE
@@ -678,18 +693,6 @@ MODRET auth_post_pass(cmd_rec *cmd) {
 
     /* Disable future attempts at UID/GID manipulation. */
     session.disable_id_switching = TRUE;
-
-    if (*root_revoke == 1) {
-      /* If the server's listening port is less than 1024, block PORT
-       * commands (effectively allowing only passive connections, which is
-       * not necessarily a Bad Thing).  Only log this here -- the blocking
-       * will need to occur in mod_core's handling of the PORT/EPRT commands.
-       */
-      if (session.c->local_port < 1024) {
-        pr_log_debug(DEBUG0,
-          "RootRevoke in effect, active data transfers may not succeed");
-      }
-    }
 
     pr_log_debug(DEBUG0, "RootRevoke in effect, dropped root privs");
   }
@@ -875,9 +878,13 @@ static int get_default_root(pool *p, int allow_symlinks, const char **root) {
           path[pathlen-1] = '\0';
         }
 
+        PRIVS_USER
         res = is_symlink_path(p, path, pathlen);
+        xerrno = errno;
+        PRIVS_RELINQUISH
+
         if (res < 0) {
-          if (errno == EPERM) {
+          if (xerrno == EPERM) {
             pr_log_pri(PR_LOG_WARNING, "error: DefaultRoot %s is a symlink "
               "(denied by AllowChrootSymlinks config)", path);
           }
@@ -978,6 +985,11 @@ static int setup_env(pool *p, cmd_rec *cmd, const char *user, char *pass) {
   origuser = user;
   c = pr_auth_get_anon_config(p, &user, &ourname, &anonname);
   if (c != NULL) {
+    pr_trace_msg("auth", 13,
+      "found <Anonymous> config: login user = %s, config user = %s, "
+      "anon name = %s", user != NULL ? user : "(null)",
+      ourname != NULL ? ourname : "(null)",
+      anonname != NULL ? anonname : "(null)");
     session.anon_config = c;
   }
 
@@ -1898,7 +1910,7 @@ static int auth_scan_scoreboard(void) {
   char curr_server_addr[80] = {'\0'};
   const char *client_addr = pr_netaddr_get_ipstr(session.c->remote_addr);
 
-  snprintf(curr_server_addr, sizeof(curr_server_addr), "%s:%d",
+  pr_snprintf(curr_server_addr, sizeof(curr_server_addr), "%s:%d",
     pr_netaddr_get_ipstr(session.c->local_addr), main_server->ServerPort);
   curr_server_addr[sizeof(curr_server_addr)-1] = '\0';
 
@@ -1979,7 +1991,7 @@ static int auth_scan_scoreboard(void) {
         msg = c->argv[1];
 
       memset(maxstr, '\0', sizeof(maxstr));
-      snprintf(maxstr, sizeof(maxstr), "%u", *max);
+      pr_snprintf(maxstr, sizeof(maxstr), "%u", *max);
       maxstr[sizeof(maxstr)-1] = '\0';
 
       pr_response_send(R_530, "%s", sreplace(session.pool, msg,
@@ -2043,7 +2055,7 @@ static int auth_count_scoreboard(cmd_rec *cmd, const char *user) {
   if (user != NULL) {
     char curr_server_addr[80] = {'\0'};
 
-    snprintf(curr_server_addr, sizeof(curr_server_addr), "%s:%d",
+    pr_snprintf(curr_server_addr, sizeof(curr_server_addr), "%s:%d",
       pr_netaddr_get_ipstr(session.c->local_addr), main_server->ServerPort);
     curr_server_addr[sizeof(curr_server_addr)-1] = '\0';
 
@@ -2060,18 +2072,10 @@ static int auth_count_scoreboard(cmd_rec *cmd, const char *user) {
       /* Make sure it matches our current server. */
       if (strcmp(score->sce_server_addr, curr_server_addr) == 0) {
 
-        if ((c != NULL && c->config_type == CONF_ANON &&
-            !strcmp(score->sce_user, user)) || c == NULL) {
-
-          /* This small hack makes sure that cur is incremented properly
-           * when dealing with anonymous logins (the timing of anonymous
-           * login updates to the scoreboard makes this...odd).
-           */
-          if (c != NULL &&
-              c->config_type == CONF_ANON &&
-              cur == 0) {
-              cur = 1;
-          }
+        if ((c != NULL &&
+             c->config_type == CONF_ANON &&
+             strcmp(score->sce_user, user) == 0) ||
+            c == NULL) {
 
           /* Only count authenticated clients, as per the documentation. */
           if (strncmp(score->sce_user, "(none)", 7) == 0) {
@@ -2082,20 +2086,9 @@ static int auth_count_scoreboard(cmd_rec *cmd, const char *user) {
 
           /* Count up sessions on a per-host basis. */
 
-          if (!strcmp(score->sce_client_addr,
-              pr_netaddr_get_ipstr(session.c->remote_addr))) {
+          if (strcmp(score->sce_client_addr,
+              pr_netaddr_get_ipstr(session.c->remote_addr)) == 0) {
             same_host = TRUE;
-
-            /* This small hack makes sure that hcur is incremented properly
-             * when dealing with anonymous logins (the timing of anonymous
-             * login updates to the scoreboard makes this...odd).
-             */
-            if (c != NULL &&
-                c->config_type == CONF_ANON &&
-                hcur == 0) {
-              hcur = 1;
-            }
-
             hcur++;
           }
 
@@ -2104,7 +2097,7 @@ static int auth_count_scoreboard(cmd_rec *cmd, const char *user) {
             usersessions++;
 
             /* Count up unique hosts. */
-            if (!same_host) {
+            if (same_host == FALSE) {
               hostsperuser++;
             }
           }
@@ -2175,7 +2168,7 @@ static int auth_count_scoreboard(cmd_rec *cmd, const char *user) {
       pr_event_generate("mod_auth.max-clients-per-class",
         session.conn_class->cls_name);
 
-      snprintf(maxn, sizeof(maxn), "%u", *max);
+      pr_snprintf(maxn, sizeof(maxn), "%u", *max);
       pr_response_send(R_530, "%s", sreplace(cmd->tmp_pool, maxstr, "%m", maxn,
         NULL));
       (void) pr_cmd_dispatch_phase(cmd, LOG_CMD_ERR, 0);
@@ -2200,12 +2193,13 @@ static int auth_count_scoreboard(cmd_rec *cmd, const char *user) {
       maxstr = maxc->argv[1];
     }
 
-    if (*max && hcur > *max) {
+    if (*max &&
+        hcur > *max) {
       char maxn[20] = {'\0'};
 
       pr_event_generate("mod_auth.max-clients-per-host", session.c);
 
-      snprintf(maxn, sizeof(maxn), "%u", *max);
+      pr_snprintf(maxn, sizeof(maxn), "%u", *max);
       pr_response_send(R_530, "%s", sreplace(cmd->tmp_pool, maxstr, "%m", maxn,
         NULL));
       (void) pr_cmd_dispatch_phase(cmd, LOG_CMD_ERR, 0);
@@ -2228,12 +2222,13 @@ static int auth_count_scoreboard(cmd_rec *cmd, const char *user) {
       maxstr = maxc->argv[1];
     }
 
-    if (*max && usersessions > *max) {
+    if (*max &&
+        usersessions > *max) {
       char maxn[20] = {'\0'};
 
       pr_event_generate("mod_auth.max-clients-per-user", user);
 
-      snprintf(maxn, sizeof(maxn), "%u", *max);
+      pr_snprintf(maxn, sizeof(maxn), "%u", *max);
       pr_response_send(R_530, "%s", sreplace(cmd->tmp_pool, maxstr, "%m", maxn,
         NULL));
       (void) pr_cmd_dispatch_phase(cmd, LOG_CMD_ERR, 0);
@@ -2255,12 +2250,13 @@ static int auth_count_scoreboard(cmd_rec *cmd, const char *user) {
       maxstr = maxc->argv[1];
     }
 
-    if (*max && cur > *max) {
+    if (*max &&
+        cur > *max) {
       char maxn[20] = {'\0'};
 
       pr_event_generate("mod_auth.max-clients", NULL);
 
-      snprintf(maxn, sizeof(maxn), "%u", *max);
+      pr_snprintf(maxn, sizeof(maxn), "%u", *max);
       pr_response_send(R_530, "%s", sreplace(cmd->tmp_pool, maxstr, "%m", maxn,
         NULL));
       (void) pr_cmd_dispatch_phase(cmd, LOG_CMD_ERR, 0);
@@ -2286,7 +2282,7 @@ static int auth_count_scoreboard(cmd_rec *cmd, const char *user) {
 
       pr_event_generate("mod_auth.max-hosts-per-user", user);
 
-      snprintf(maxn, sizeof(maxn), "%u", *max);
+      pr_snprintf(maxn, sizeof(maxn), "%u", *max);
       pr_response_send(R_530, "%s", sreplace(cmd->tmp_pool, maxstr, "%m", maxn,
         NULL));
       (void) pr_cmd_dispatch_phase(cmd, LOG_CMD_ERR, 0);
@@ -2475,35 +2471,52 @@ MODRET auth_pre_pass(cmd_rec *cmd) {
 
       allow_empty_passwords = *((int *) c->argv[0]);
       if (allow_empty_passwords == FALSE) {
+        const char *proto;
+        int reject_empty_passwd = FALSE, using_ssh2 = FALSE;
         size_t passwd_len = 0;
  
+        proto = pr_session_get_protocol(0);
+        if (strcmp(proto, "ssh2") == 0) {
+          using_ssh2 = TRUE;
+        }
+
         if (cmd->argc > 1) {
           if (cmd->arg != NULL) {
             passwd_len = strlen(cmd->arg);
           }
         }
 
-        /* Make sure to NOT enforce 'AllowEmptyPasswords off' if e.g.
-         * the AllowDotLogin TLSOption is in effect.
-         */
-        if (cmd->argc == 1 ||
-            passwd_len == 0) {
+        if (passwd_len == 0) {
+          reject_empty_passwd = TRUE;
 
-          if (session.auth_mech == NULL ||
-              strcmp(session.auth_mech, "mod_tls.c") != 0) {
-            pr_log_debug(DEBUG5,
-              "Refusing empty password from user '%s' (AllowEmptyPasswords "
-              "false)", user);
-            pr_log_auth(PR_LOG_NOTICE,
-              "Refusing empty password from user '%s'", user);
+          /* Make sure to NOT enforce 'AllowEmptyPasswords off' if e.g.
+           * the AllowDotLogin TLSOption is in effect, or if the protocol is
+           * SSH2 (for mod_sftp uses "fake" PASS commands for the SSH login
+           * protocol).
+           */
 
-            pr_event_generate("mod_auth.empty-password", user);
-            pr_response_add_err(R_501, _("Login incorrect."));
-            return PR_ERROR(cmd);
+          if (session.auth_mech != NULL &&
+              strcmp(session.auth_mech, "mod_tls.c") == 0) {
+            pr_log_debug(DEBUG9, "%s", "'AllowEmptyPasswords off' in effect, "
+              "BUT client authenticated via the AllowDotLogin TLSOption");
+            reject_empty_passwd = FALSE;
           }
 
-          pr_log_debug(DEBUG9, "%s", "'AllowEmptyPasswords off' in effect, "
-            "BUT client authenticated via the AllowDotLogin TLSOption");
+          if (using_ssh2 == TRUE) {
+            reject_empty_passwd = FALSE;
+          }
+        }
+
+        if (reject_empty_passwd == TRUE) {
+          pr_log_debug(DEBUG5,
+            "Refusing empty password from user '%s' (AllowEmptyPasswords "
+            "false)", user);
+          pr_log_auth(PR_LOG_NOTICE,
+            "Refusing empty password from user '%s'", user);
+
+          pr_event_generate("mod_auth.empty-password", user);
+          pr_response_add_err(R_501, _("Login incorrect."));
+          return PR_ERROR(cmd);
         }
       }
     }
@@ -3776,8 +3789,8 @@ MODRET set_rootrevoke(cmd_rec *cmd) {
   }
 
   c = add_config_param(cmd->argv[0], 1, NULL);
-  c->argv[0] = pcalloc(c->pool, sizeof(unsigned char));
-  *((unsigned char *) c->argv[0]) = (unsigned char) root_revoke;
+  c->argv[0] = pcalloc(c->pool, sizeof(int));
+  *((int *) c->argv[0]) = root_revoke;
 
   c->flags |= CF_MERGEDOWN;
   return PR_HANDLED(cmd);
